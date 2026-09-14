@@ -13,8 +13,8 @@
     <header class="topbar">
       <div><div class="kicker">PROTOTIPO 0.3 · SUPERVIVENCIA NARRATIVA</div><h1>QUIET SIGNAL</h1></div>
       <div class="top-actions">
-        <button id="archiveBtn" class="ghost">Archivo</button>
-        <button id="settingsBtn" class="ghost">Configuración</button>
+        <button id="archiveBtn" class="ghost" data-i18n="ui.menu.archive">Archivo</button>
+        <button id="settingsBtn" class="ghost" data-i18n="ui.menu.settings">Configuración</button>
         <button id="menuBtn" class="ghost">Menú</button>
       </div>
     </header>
@@ -96,14 +96,14 @@
       <h2>QUIET SIGNAL</h2>
       <p>El viento cubre las antenas. Una frecuencia espera bajo el ruido.</p>
       <nav class="menu-actions">
-        <button id="continueBtn" class="primary">Continuar</button>
-        <button id="newGameBtn" class="menu-choice">Nueva partida</button>
-        <button id="menuArchiveBtn" class="menu-choice">Archivo</button>
-        <button id="menuSettingsBtn" class="menu-choice">Configuración</button>
+        <button id="continueBtn" class="primary" data-i18n="ui.menu.continue">Continuar</button>
+        <button id="newGameBtn" class="menu-choice" data-i18n="ui.menu.newGame">Nueva partida</button>
+        <button id="menuArchiveBtn" class="menu-choice" data-i18n="ui.menu.archive">Archivo</button>
+        <button id="menuSettingsBtn" class="menu-choice" data-i18n="ui.menu.settings">Configuración</button>
       </nav>
       <section class="profile-spotlight" aria-label="Perfil local activo">
         <div><span class="panel-kicker">OPERADOR LOCAL</span><strong id="activeProfileName">Jugador 1</strong><small id="activeProfileMeta">Progreso guardado en este navegador</small></div>
-        <button id="changeProfileBtn" class="ghost">Cambiar perfil</button>
+        <button id="changeProfileBtn" class="ghost" data-i18n="ui.profile.change">Cambiar perfil</button>
       </section>
       <div id="metaSummary" class="meta-summary"></div>
     </section>
@@ -149,8 +149,9 @@
   <dialog id="settingsDialog">
     <section class="modal-card settings-modal">
       <div class="modal-head"><div><div class="kicker">PREFERENCIAS LOCALES</div><h2>Configuración</h2></div><button type="button" class="close-btn" data-close="settingsDialog">×</button></div>
-      <label>Escala de texto<select id="textScale"><option value="100">Normal</option><option value="112">Grande</option><option value="125">Muy grande</option></select></label>
-      <label class="check-row"><input id="reduceMotion" type="checkbox" /> Reducir animaciones</label>
+      <label><span data-i18n="ui.settings.textScale">Escala de texto</span><select id="textScale"><option value="100">Normal</option><option value="112">Grande</option><option value="125">Muy grande</option></select></label>
+      <label><span data-i18n="ui.settings.language">Idioma</span><select id="languageSelect"><option value="es">Español</option><option value="en">English</option><option value="ko">한국어</option></select></label>
+      <label class="check-row"><input id="reduceMotion" type="checkbox" /> <span data-i18n="ui.settings.reduceMotion">Reducir animaciones</span></label>
       <div class="danger-zone"><h3>Datos guardados</h3><button id="deleteRunBtn" class="danger-button">Borrar run actual</button><button id="deleteAllBtn" class="danger-button strong">Borrar todo el progreso</button><p>La segunda opción elimina también DATA, Archivo, logros y desbloqueos.</p></div>
     </section>
   </dialog>
@@ -164,6 +165,7 @@
   </dialog>
 
   <script src="data.js"></script>
+  <script src="locales.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

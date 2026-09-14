@@ -279,5 +279,15 @@
     {id:'mutator_paranoia',type:'mutator',target:'paranoia',name:'Mutador: Paranoia',cost:50,description:'+20% DATA.'}
   ];
 
+  // Stable semantic keys keep saves language-neutral; rendering resolves these keys at runtime.
+  scenarios.forEach(item => { item.nameKey = `scenario.${item.id}.name`; item.descriptionKey = `scenario.${item.id}.description`; });
+  operators.forEach(item => { item.nameKey = `operator.${item.id}.name`; item.descriptionKey = `operator.${item.id}.description`; item.positiveKey = `operator.${item.id}.positive`; item.negativeKey = `operator.${item.id}.negative`; });
+  difficulties.forEach(item => { item.nameKey = `difficulty.${item.id}.name`; item.descriptionKey = `difficulty.${item.id}.description`; });
+  mutators.forEach(item => { item.nameKey = `mutator.${item.id}.name`; item.descriptionKey = `mutator.${item.id}.description`; });
+  objectives.forEach(item => { item.textKey = `objective.${item.id}.text`; });
+  events.forEach(item => { item.titleKey = `event.${item.id}.title`; item.textKey = `event.${item.id}.text`; item.choices.forEach((choice,index) => { choice.titleKey = `event.${item.id}.choice.${index}.title`; choice.descKey = `event.${item.id}.choice.${index}.desc`; choice.hintKey = `event.${item.id}.choice.${index}.hint`; }); });
+  endings.forEach(item => { item.titleKey = `ending.${item.id}.title`; item.textKey = `ending.${item.id}.text`; });
+  achievements.forEach(item => { item.nameKey = `achievement.${item.id}.name`; item.descriptionKey = `achievement.${item.id}.description`; });
+  unlocks.forEach(item => { item.nameKey = `unlock.${item.id}.name`; item.descriptionKey = `unlock.${item.id}.description`; });
   window.QS_DATA = { scenarios, operators, difficulties, mutators, objectives, events, endings, achievements, unlocks };
 })();

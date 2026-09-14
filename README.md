@@ -20,3 +20,9 @@ Abrí [Quiet Signal](https://lkzMini.github.io/quiet-signal/) en Brave, elegí u
 ## Desarrollo local
 
 Abrí `index.html` directamente. No requiere npm, dependencias, backend ni build step.
+
+## Languages / Idiomas
+
+Quiet Signal supports **Spanish**, **English**, and **Korean**. The first visit detects `navigator.language` (`es-*`, `ko-*`, `en-*`; other languages default to English). The language selector lives in Settings and changes the interface immediately without restarting or changing a run. The preference is persisted in `quiet-signal-settings-v1` alongside the existing visual settings.
+
+Translations use stable semantic keys and an English fallback when a key is missing; development builds log missing keys to the console. To add another language (for example Portuguese), add its dictionary to `locales.js`, include it in `supported`, and add a selector option. Run `node scripts/check-translations.js` to compare translation coverage across ES/EN/KO.

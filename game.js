@@ -7,10 +7,11 @@
   const SETTINGS_KEY = 'quiet-signal-settings-v1';
   const LEGACY_RUN_KEY = 'quiet-signal-v02';
   const D = window.QS_DATA;
+  const I18N = window.QS_I18N;
   const $ = id => document.getElementById(id);
-  const STATION_STATS = [['power','Potencia'],['integrity','Estructura'],['heat','Calefacción'],['comms','Comunicaciones'],['water','Agua']];
-  const OPERATOR_STATS = [['health','Salud',false],['hunger','Hambre',true],['thirst','Sed',true],['fatigue','Fatiga',true],['stress','Estrés',true]];
-  const RESOURCE_META = [['food','Raciones'],['waterReserve','Agua'],['fuel','Combustible'],['spareParts','Repuestos'],['medicalSupplies','Medicina'],['batteries','Baterías']];
+  const STATION_STATS = [['power','stats.station.power'],['integrity','stats.station.structure'],['heat','stats.station.heat'],['comms','stats.station.comms'],['water','stats.station.water']];
+  const OPERATOR_STATS = [['health','stats.operator.health',false],['hunger','stats.operator.hunger',true],['thirst','stats.operator.thirst',true],['fatigue','stats.operator.fatigue',true],['stress','stats.operator.stress',true]];
+  const RESOURCE_META = [['food','stats.resource.food'],['waterReserve','stats.resource.water'],['fuel','stats.resource.fuel'],['spareParts','stats.resource.parts'],['medicalSupplies','stats.resource.medicine'],['batteries','stats.resource.batteries']];
 
   let profileStore = initializeProfiles();
   let activeProfile = profileStore.profiles.find(profile => profile.id === profileStore.selectedProfileId) || profileStore.profiles[0];
@@ -20,7 +21,7 @@
   let profileMetaKey = profileKey('meta');
   let meta = normalizeMeta(loadJson(profileMetaKey, createMeta()));
   let settings = loadJson(SETTINGS_KEY, { textScale: 100, reduceMotion: false });
-  settings = { textScale: Number(settings?.textScale) || 100, reduceMotion: Boolean(settings?.reduceMotion) };
+  settings = { textScale: Number(settings?.textScale) || 100, reduceMotion: Boolean(settings?.reduceMotion), language: I18N.getLocale() };
   let run = loadJson(profileRunKey, null);
   let currentEvent = null;
 
@@ -93,6 +94,7 @@
   function uniquePush(list, value) { if (!list.includes(value)) list.push(value); }
   function randomItem(list) { return list[Math.floor(Math.random() * list.length)]; }
   function esc(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function dataText(item, field) { const key = item && item[`${field}Key`]; return key && I18N.has(key) ? I18N.t(key) : (item?.[field] ?? ''); }
 
   function scenarioUnlocked(scenario) { return !scenario.locked || meta.scenariosUnlocked.includes(scenario.id) || meta.unlocksPurchased.includes(scenario.unlockId); }
   function operatorUnlocked(operator) { return !operator.locked || meta.operatorsUnlocked.includes(operator.id) || meta.unlocksPurchased.includes(operator.unlockId); }
@@ -367,9 +369,9 @@
     meta.runHistory = meta.runHistory.slice(0,20);
     for (const achievement of D.achievements) if (!meta.achievements.includes(achievement.id) && achievement.test(run,meta)) meta.achievements.push(achievement.id);
     saveRun(); saveMeta();
-    $('endingCategory').textContent = ending.category;
-    $('endingTitle').textContent = ending.title;
-    $('endingText').textContent = ending.text;
+    $('endingCategory').textContent = dataText(ending,'category') || ending.category;
+    $('endingTitle').textContent = dataText(ending,'title');
+    $('endingText').textContent = dataText(ending,'text');
     $('endingStats').innerHTML = `<span>Día ${Math.min(run.day,run.maxDays)} / ${run.maxDays}</span><span>Señal ${Math.round(run.signalKnowledge)}%</span><span>Salud ${Math.round(run.operator.health)}</span><span>Estación ${Math.round(average(Object.values(run.station)))}</span><span>Objetivos ${run.objectiveResults.filter(Boolean).length}/3</span><span>${difficulty.name}</span>`;
     $('rewardSummary').innerHTML = `<strong>+${dataEarned} DATA</strong><span>${newEnding ? 'Nuevo final archivado.' : 'Final ya conocido.'}</span>`;
     $('endingDialog').showModal();
@@ -377,7 +379,7 @@
 
   function statusText(value, inverted = false) {
     const effective = inverted ? 100 - value : value;
-    return effective >= 70 ? 'Estable' : effective >= 45 ? 'Atención' : effective >= 25 ? 'Grave' : 'Crítico';
+    return effective >= 70 ? I18N.t('ui.common.stable') : effective >= 45 ? I18N.t('ui.common.attention') : effective >= 25 ? I18N.t('ui.common.severe') : I18N.t('ui.common.criticalLower');
   }
 
   function meter(key, label, inverted, scope) {
@@ -386,7 +388,7 @@
     const severity = effective < 25 ? 'bad' : effective < 50 ? 'warn' : 'good';
     const row = document.createElement('div');
     row.className = 'meter-row';
-    row.innerHTML = `<div class="meter-head"><span class="meter-label">${label}</span><strong>${Math.round(value)}</strong></div><div class="meter"><div class="meter-fill ${severity}" style="width:${value}%"></div></div><span class="meter-state ${severity}">${statusText(value,inverted)}</span>`;
+    row.innerHTML = `<div class="meter-head"><span class="meter-label">${I18N.t(label)}</span><strong>${Math.round(value)}</strong></div><div class="meter"><div class="meter-fill ${severity}" style="width:${value}%"></div></div><span class="meter-state ${severity}">${statusText(value,inverted)}</span>`;
     return row;
   }
 
@@ -395,8 +397,8 @@
     $('operatorStats').replaceChildren(...OPERATOR_STATS.map(([key,label,inverted]) => meter(key,label,inverted,'operator')));
     const stationAverage = average(Object.values(run.station));
     const risk = average([100-run.operator.health,run.operator.hunger,run.operator.thirst,run.operator.fatigue,run.operator.stress]);
-    setStatus($('stationStatus'), stationAverage > 70 ? 'ESTABLE' : stationAverage > 45 ? 'DEGRADADA' : 'CRÍTICA', stationAverage);
-    setStatus($('operatorStatus'), risk < 35 ? 'FUNCIONAL' : risk < 60 ? 'EXIGIDO' : 'CRÍTICO', 100-risk);
+    setStatus($('stationStatus'), stationAverage > 70 ? I18N.t('ui.common.stable') : stationAverage > 45 ? I18N.t('ui.common.degraded') : I18N.t('ui.common.critical'), stationAverage);
+    setStatus($('operatorStatus'), risk < 35 ? I18N.t('ui.common.functional') : risk < 60 ? I18N.t('ui.common.demanding') : I18N.t('ui.common.critical'), 100-risk);
   }
 
   function setStatus(element, text, effective) {
@@ -410,7 +412,7 @@
     $('resources').replaceChildren(...RESOURCE_META.map(([key,label]) => {
       const item = document.createElement('div');
       item.className = `resource ${run.resources[key] <= 2 ? 'low' : ''}`;
-      item.innerHTML = `<span>${label}</span><strong>${Math.max(0,Math.round(run.resources[key]))}</strong>`;
+      item.innerHTML = `<span>${I18N.t(label)}</span><strong>${Math.max(0,Math.round(run.resources[key]))}</strong>`;
       return item;
     }));
   }
@@ -421,7 +423,7 @@
       const complete = objective.test(run);
       const item = document.createElement('div');
       item.className = `objective ${complete ? 'complete' : ''}`;
-      item.innerHTML = `<span>${complete?'✓':'○'}</span><p>${esc(objective.text)}</p>`;
+      item.innerHTML = `<span>${complete?'✓':'○'}</span><p>${esc(dataText(objective,'text'))}</p>`;
       return item;
     }));
   }
@@ -453,8 +455,8 @@
     $('weatherCaption').textContent = currentEvent.weather || currentScenario().weather;
     $('eventCategory').textContent = (currentEvent.category || 'evento').toUpperCase();
     $('eventRarity').textContent = currentEvent.chain ? `CADENA · ETAPA ${currentEvent.chain.stage}` : '';
-    $('eventTitle').textContent = currentEvent.title;
-    $('eventText').textContent = currentEvent.text;
+    $('eventTitle').textContent = dataText(currentEvent,'title');
+    $('eventText').textContent = dataText(currentEvent,'text');
     $('contextLine').textContent = contextHint();
     if (run.eventResolved) {
       $('choices').innerHTML = '<div class="resolved-event">La decisión quedó registrada. Podés usar las acciones restantes o cerrar el día.</div>';
@@ -464,7 +466,7 @@
         const enabled = requirementMet(choice.requirements);
         const button = document.createElement('button');
         button.className = 'choice'; button.disabled = !enabled;
-        button.innerHTML = `<div><strong>${esc(choice.title)}</strong><span>${esc(choice.desc)}</span></div><em>${esc(enabled ? choice.hint : 'Requisitos no cumplidos')}</em>`;
+        button.innerHTML = `<div><strong>${esc(dataText(choice,'title'))}</strong><span>${esc(dataText(choice,'desc'))}</span></div><em>${esc(enabled ? dataText(choice,'hint') : I18N.t('ui.common.requirements'))}</em>`;
         button.onclick = () => chooseEvent(choice);
         return button;
       }));
@@ -491,17 +493,39 @@
     $('timeValue').textContent = run.time;
     $('actionsValue').textContent = `${run.actionsRemaining} / ${currentDifficulty().actions}`;
     $('signalValue').textContent = `${Math.round(run.signalKnowledge)}%`;
-    $('runContext').textContent = `${currentScenario().name} · ${currentDifficulty().name}`;
-    $('sceneCaption').textContent = `Estación K-27 · ${currentScenario().name}`;
-    $('operatorKicker').textContent = `OPERADOR · ${currentOperator().name.toUpperCase()}`;
-    $('traitSummary').innerHTML = `<span>＋ ${esc(currentOperator().positive)}</span><span>− ${esc(currentOperator().negative)}</span>`;
+    const scenario = currentScenario();
+    const operator = currentOperator();
+    const difficulty = currentDifficulty();
+    const scenarioName = dataText(scenario,'name');
+    const operatorName = dataText(operator,'name');
+    const difficultyName = dataText(difficulty,'name');
+    $('runContext').textContent = `${scenarioName} · ${difficultyName}`;
+    $('sceneCaption').textContent = `${I18N.t('ui.common.station')} K-27 · ${scenarioName}`;
+    $('operatorKicker').textContent = `${I18N.t('ui.common.operator')} · ${operatorName.toUpperCase()}`;
+    $('traitSummary').innerHTML = `<span>＋ ${esc(dataText(operator,'positive'))}</span><span>− ${esc(dataText(operator,'negative'))}</span>`;
     renderMeters(); renderResources(); renderObjectives(); renderActions(); renderEvent(); renderLog(); renderIntel();
     saveRun();
   }
 
   function formatProfileDate(isoDate) {
-    if (!isoDate) return 'Sin partidas todavía';
-    return `Última partida: ${new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(isoDate))}`;
+    if (!isoDate) return I18N.t('ui.profile.never');
+    const locale = I18N.getLocale() === 'es' ? 'es-AR' : I18N.getLocale();
+    return I18N.t('ui.profile.lastPlayed', { date: new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short'}).format(new Date(isoDate)) });
+  }
+
+  function updateLocalizedUi() {
+    I18N.applyStatic(document);
+    const text = {
+      archiveBtn:'ui.menu.archive', settingsBtn:'ui.menu.settings', menuBtn:'ui.menu.settings',
+      continueBtn:'ui.menu.continue', newGameBtn:'ui.menu.newGame', menuArchiveBtn:'ui.menu.archive', menuSettingsBtn:'ui.menu.settings',
+      changeProfileBtn:'ui.profile.change', createProfileBtn:'ui.profile.create'
+    };
+    Object.entries(text).forEach(([id,key])=>{ const node=$(id); if(node) node.textContent=I18N.t(key); });
+    const select=$('languageSelect'); if(select) select.value=I18N.getLocale();
+    const labels={stationStatus:'ui.common.stable',operatorStatus:'ui.common.functional'};
+    Object.entries(labels).forEach(([id,key])=>{const node=$(id);if(node)node.textContent=I18N.t(key);});
+    const scale=$('textScale'); if(scale){ scale.options[0].text=I18N.t('ui.settings.normal'); scale.options[1].text=I18N.t('ui.settings.large'); scale.options[2].text=I18N.t('ui.settings.veryLarge'); }
+    if (run && !run.complete) render(); else showMenu();
   }
 
   function openProfiles() {
@@ -605,13 +629,13 @@
   function renderNewGame() {
     const radioCards = (items,name,isUnlocked) => items.map((item,index) => {
       const unlocked = isUnlocked(item);
-      return `<label class="select-card ${unlocked?'':'locked'}"><input type="radio" name="${name}" value="${item.id}" ${unlocked&&index===items.findIndex(isUnlocked)?'checked':''} ${unlocked?'':'disabled'}><strong>${esc(item.name)}</strong><span>${esc(item.description)}</span>${unlocked?'':'<em>BLOQUEADO</em>'}</label>`;
+      return `<label class="select-card ${unlocked?'':'locked'}"><input type="radio" name="${name}" value="${item.id}" ${unlocked&&index===items.findIndex(isUnlocked)?'checked':''} ${unlocked?'':'disabled'}><strong>${esc(dataText(item,'name'))}</strong><span>${esc(dataText(item,'description'))}</span>${unlocked?'':`<em>${I18N.t('ui.common.locked')}</em>`}</label>`;
     }).join('');
     $('scenarioOptions').innerHTML = radioCards(D.scenarios,'scenario',scenarioUnlocked);
     $('operatorOptions').innerHTML = radioCards(D.operators,'operator',operatorUnlocked);
     $('difficultyOptions').innerHTML = radioCards(D.difficulties,'difficulty',()=>true);
     const unlockedMutators = D.mutators.filter(mutator => meta.mutatorsUnlocked.includes(mutator.id));
-    $('mutatorOptions').innerHTML = unlockedMutators.length ? unlockedMutators.map(mutator => `<label class="mutator-option"><input type="checkbox" name="mutator" value="${mutator.id}"><span><strong>${esc(mutator.name)}</strong><small>${esc(mutator.description)} · +${Math.round(mutator.reward*100)}% DATA</small></span></label>`).join('') : '<p class="empty-copy">Todavía no desbloqueaste mutadores.</p>';
+    $('mutatorOptions').innerHTML = unlockedMutators.length ? unlockedMutators.map(mutator => `<label class="mutator-option"><input type="checkbox" name="mutator" value="${mutator.id}"><span><strong>${esc(dataText(mutator,'name'))}</strong><small>${esc(dataText(mutator,'description'))} · +${Math.round(mutator.reward*100)}% DATA</small></span></label>`).join('') : `<p class="empty-copy">${I18N.t('ui.newGame.noMutators')}</p>`;
     updateRunPreview();
     $('newGameDialog').showModal();
   }
@@ -624,7 +648,7 @@
     if (!scenario || !operator || !difficulty) return;
     const mutators = form.getAll('mutator');
     const bonus = mutators.reduce((sum,id)=>sum+(byId(D.mutators,id)?.reward||0),0);
-    $('runPreview').innerHTML = `<span>${esc(scenario.name)}</span><span>${esc(operator.name)}</span><span>${esc(difficulty.name)}</span><strong>${difficulty.actions} acciones/día · ×${(difficulty.reward*(1+bonus)).toFixed(2)} DATA</strong>`;
+      $('runPreview').innerHTML = `<span>${esc(dataText(scenario,'name'))}</span><span>${esc(dataText(operator,'name'))}</span><span>${esc(dataText(difficulty,'name'))}</span><strong>${difficulty.actions} ${I18N.t('ui.newGame.actionsPerDay')} · ×${(difficulty.reward*(1+bonus)).toFixed(2)} DATA</strong>`;
   }
 
   function openArchive() {
@@ -633,7 +657,7 @@
       const purchased = meta.unlocksPurchased.includes(unlock.id);
       const button = document.createElement('button');
       button.className = 'unlock'; button.disabled = purchased || meta.data < unlock.cost;
-      button.innerHTML = `<span><strong>${esc(unlock.name)}</strong><small>${esc(unlock.description)}</small></span><em>${purchased?'ADQUIRIDO':`${unlock.cost} DATA`}</em>`;
+      button.innerHTML = `<span><strong>${esc(dataText(unlock,'name'))}</strong><small>${esc(dataText(unlock,'description'))}</small></span><em>${purchased?I18N.t('ui.archive.acquired'):`${unlock.cost} DATA`}</em>`;
       button.onclick = () => purchaseUnlock(unlock);
       return button;
     }));
@@ -647,7 +671,7 @@
 
   function purchaseUnlock(unlock) {
     if (meta.data < unlock.cost || meta.unlocksPurchased.includes(unlock.id)) return;
-    if (!confirm(`¿Desbloquear “${unlock.name}” por ${unlock.cost} DATA?`)) return;
+    if (!confirm(I18N.t('ui.unlock.confirm', { name: dataText(unlock,'name'), cost: unlock.cost }))) return;
     meta.data -= unlock.cost;
     meta.unlocksPurchased.push(unlock.id);
     if (unlock.type === 'scenario') uniquePush(meta.scenariosUnlocked, unlock.id.replace('scenario_',''));
@@ -657,7 +681,7 @@
   }
 
   function openArchiveRefresh() { $('archiveDialog').close(); openArchive(); }
-  function openSettings() { $('textScale').value=String(settings.textScale);$('reduceMotion').checked=settings.reduceMotion;$('settingsDialog').showModal(); }
+  function openSettings() { $('textScale').value=String(settings.textScale);$('reduceMotion').checked=settings.reduceMotion;$('languageSelect').value=I18N.getLocale();$('settingsDialog').showModal(); }
   function applySettings() { document.documentElement.style.setProperty('--text-scale',`${settings.textScale/100}`);document.body.classList.toggle('reduce-motion',settings.reduceMotion); }
   function closeDialog(id) { const dialog=$(id);if(dialog.open)dialog.close(); }
 
@@ -682,6 +706,7 @@
   });
 
   $('textScale').onchange = event => { settings.textScale=Number(event.target.value);saveSettings();applySettings(); };
+  $('languageSelect').onchange = event => { I18N.setLocale(event.target.value); settings.language=I18N.getLocale(); saveSettings(); updateLocalizedUi(); };
   $('reduceMotion').onchange = event => { settings.reduceMotion=event.target.checked;saveSettings();applySettings(); };
   $('deleteRunBtn').onclick = () => { if(!run||run.complete){alert('No hay una run activa.');return;}if(confirm('¿Borrar únicamente la run actual? El Archivo y la DATA se conservarán.')){localStorage.removeItem(profileRunKey);run=null;closeDialog('settingsDialog');showMenu();} };
   $('deleteAllBtn').onclick = () => { const answer=prompt('Esta acción elimina el progreso de este perfil. Escribí BORRAR TODO para confirmar.');if(answer==='BORRAR TODO'){localStorage.removeItem(profileRunKey);localStorage.removeItem(profileMetaKey);run=null;meta=createMeta();saveMeta();closeDialog('settingsDialog');showMenu();} };
@@ -689,7 +714,8 @@
   document.querySelectorAll('[data-close]').forEach(button => button.onclick = () => closeDialog(button.dataset.close));
   document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
 
+  I18N.onChange(() => { updateLocalizedUi(); });
   applySettings();
   if (run && !run.complete) currentEvent = run.currentEventId === 'final_shift' ? finalEvent() : byId(D.events,run.currentEventId) || pickEvent();
-  showMenu();
+  updateLocalizedUi();
 })();
