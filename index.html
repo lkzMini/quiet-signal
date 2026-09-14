@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1013" />
+  <title>Quiet Signal — Prototype 0.3</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <main class="app-shell" id="gameScreen">
+    <header class="topbar">
+      <div><div class="kicker">PROTOTIPO 0.3 · SUPERVIVENCIA NARRATIVA</div><h1>QUIET SIGNAL</h1></div>
+      <div class="top-actions">
+        <button id="archiveBtn" class="ghost">Archivo</button>
+        <button id="settingsBtn" class="ghost">Configuración</button>
+        <button id="menuBtn" class="ghost">Menú</button>
+      </div>
+    </header>
+
+    <section class="run-strip" aria-label="Estado de la partida">
+      <div><span>DÍA</span><strong id="dayValue">1 / 12</strong></div>
+      <div><span>HORA</span><strong id="timeValue">06:40</strong></div>
+      <div><span>ACCIONES</span><strong id="actionsValue">3 / 3</strong></div>
+      <div><span>SEÑAL 14.827</span><strong id="signalValue">0%</strong></div>
+      <div class="run-context"><span>OPERACIÓN</span><strong id="runContext">—</strong></div>
+    </section>
+
+    <div class="game-layout">
+      <aside class="status-column">
+        <section class="panel systems-card">
+          <div class="systems-head"><div><div class="kicker">ESTACIÓN K-27</div><h2>Condición</h2></div><span class="status-pill" id="stationStatus">ESTABLE</span></div>
+          <div id="stationStats" class="meter-grid"></div>
+        </section>
+
+        <section class="panel systems-card">
+          <div class="systems-head"><div><div class="kicker" id="operatorKicker">OPERADOR</div><h2>Estado personal</h2></div><span class="status-pill" id="operatorStatus">FUNCIONAL</span></div>
+          <div id="operatorStats" class="meter-grid"></div>
+          <div id="traitSummary" class="trait-summary"></div>
+        </section>
+
+        <section class="panel resource-card">
+          <div class="section-title">RECURSOS</div>
+          <div id="resources" class="resource-grid"></div>
+        </section>
+
+        <section class="panel objective-card">
+          <div class="section-title">OBJETIVOS DE RUN</div>
+          <div id="objectives" class="objective-list"></div>
+        </section>
+      </aside>
+
+      <section class="narrative-column">
+        <section class="scene-card">
+          <div class="scene" id="scene">
+            <div class="sky"></div><div class="moon"></div>
+            <div class="mountains far"></div><div class="mountains near"></div>
+            <div class="station"><div class="tower"></div><div class="antenna"></div><div class="window"></div></div>
+            <div class="signal-ring ring-a"></div><div class="signal-ring ring-b"></div><div class="vignette"></div>
+          </div>
+          <div class="scene-caption"><span id="sceneCaption">Estación K-27 · Cordillera de Nadir</span><span id="weatherCaption">—</span></div>
+        </section>
+
+        <section class="panel story-card">
+          <div class="chapter-row"><div class="kicker" id="chapterLabel">DÍA 1 · 06:40</div><div class="weather" id="weatherLabel">NIEVE LEVE</div></div>
+          <div class="event-meta"><span id="eventCategory">MANTENIMIENTO</span><span id="eventRarity"></span></div>
+          <h2 id="eventTitle">Turno de guardia</h2>
+          <p id="eventText"></p>
+          <div id="contextLine" class="context-line"></div>
+          <div id="choices" class="choices"></div>
+          <button id="endDayBtn" class="primary end-day" hidden>Finalizar día</button>
+        </section>
+
+        <section class="panel actions-card">
+          <div class="actions-heading">
+            <div><div class="section-title">ACCIONES DIARIAS</div><p>La estación no se cuida sola. Elegí dónde gastar el turno.</p></div>
+            <strong id="actionsCounter">3 restantes</strong>
+          </div>
+          <div id="dailyActions" class="daily-actions"></div>
+        </section>
+
+        <div class="lower-grid">
+          <section class="panel log-card"><div class="section-title">REGISTRO DE TURNO</div><div id="log" class="log"></div></section>
+          <section class="panel intel-card"><div class="section-title">HALLAZGOS</div><p id="intelText"></p><div class="mini-rule"></div><div id="flagsList" class="flags-list"></div></section>
+        </div>
+      </section>
+    </div>
+    <footer><span>Quiet Signal 0.3 · completamente local</span><span>Guardado automático</span></footer>
+  </main>
+
+  <div id="mainMenu" class="menu-screen">
+    <div class="menu-visual" aria-hidden="true"><span>14.827</span><i></i></div>
+    <section class="menu-card">
+      <div class="kicker">PROYECTO NADIR · ESTACIÓN K-27</div>
+      <h2>QUIET SIGNAL</h2>
+      <p>El viento cubre las antenas. Una frecuencia espera bajo el ruido.</p>
+      <nav class="menu-actions">
+        <button id="continueBtn" class="primary">Continuar</button>
+        <button id="newGameBtn" class="menu-choice">Nueva partida</button>
+        <button id="menuArchiveBtn" class="menu-choice">Archivo</button>
+        <button id="menuSettingsBtn" class="menu-choice">Configuración</button>
+      </nav>
+      <section class="profile-spotlight" aria-label="Perfil local activo">
+        <div><span class="panel-kicker">OPERADOR LOCAL</span><strong id="activeProfileName">Jugador 1</strong><small id="activeProfileMeta">Progreso guardado en este navegador</small></div>
+        <button id="changeProfileBtn" class="ghost">Cambiar perfil</button>
+      </section>
+      <div id="metaSummary" class="meta-summary"></div>
+    </section>
+  </div>
+
+  <dialog id="profileDialog">
+    <section class="modal-card profile-modal">
+      <div class="modal-head"><div><div class="kicker">OPERADORES LOCALES</div><h2>Perfiles</h2></div><button type="button" class="close-btn" data-close="profileDialog">×</button></div>
+      <p class="profile-note">Cada perfil tiene su propia partida, Archivo, DATA, logros y desbloqueos. Todo permanece en este navegador.</p>
+      <div id="profilesList" class="profiles-list"></div>
+      <div class="modal-actions"><button id="createProfileBtn" type="button" class="primary">＋ Crear perfil</button></div>
+    </section>
+  </dialog>
+
+  <dialog id="newGameDialog">
+    <form id="newGameForm" class="modal-card wide-modal">
+      <div class="modal-head"><div><div class="kicker">PREPARAR OPERACIÓN</div><h2>Nueva partida</h2></div><button type="button" class="close-btn" data-close="newGameDialog">×</button></div>
+      <div class="setup-grid">
+        <fieldset><legend>1 · Escenario</legend><div id="scenarioOptions" class="select-cards"></div></fieldset>
+        <fieldset><legend>2 · Operador</legend><div id="operatorOptions" class="select-cards"></div></fieldset>
+        <fieldset><legend>3 · Dificultad</legend><div id="difficultyOptions" class="select-cards compact-select"></div></fieldset>
+        <fieldset><legend>4 · Mutadores</legend><div id="mutatorOptions" class="mutator-list"></div></fieldset>
+      </div>
+      <div id="runPreview" class="run-preview"></div>
+      <div class="modal-actions"><button type="button" class="ghost" data-close="newGameDialog">Cancelar</button><button type="submit" class="primary">Comenzar operación</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="archiveDialog">
+    <section class="modal-card archive-modal">
+      <div class="modal-head"><div><div class="kicker">META-PROGRESIÓN</div><h2>Archivo K-27</h2></div><button type="button" class="close-btn" data-close="archiveDialog">×</button></div>
+      <div id="archiveSummary" class="archive-summary"></div>
+      <div class="archive-grid">
+        <section><h3>Desbloqueos</h3><div id="unlocksList" class="unlock-list"></div></section>
+        <section><h3>Finales</h3><div id="endingsArchive" class="collection-list"></div></section>
+        <section><h3>Logros</h3><div id="achievementsArchive" class="collection-list"></div></section>
+        <section><h3>Señales y lore</h3><div id="loreArchive" class="collection-list"></div></section>
+      </div>
+      <section class="history-section"><h3>Últimas operaciones</h3><div id="runHistory" class="history-list"></div></section>
+    </section>
+  </dialog>
+
+  <dialog id="settingsDialog">
+    <section class="modal-card settings-modal">
+      <div class="modal-head"><div><div class="kicker">PREFERENCIAS LOCALES</div><h2>Configuración</h2></div><button type="button" class="close-btn" data-close="settingsDialog">×</button></div>
+      <label>Escala de texto<select id="textScale"><option value="100">Normal</option><option value="112">Grande</option><option value="125">Muy grande</option></select></label>
+      <label class="check-row"><input id="reduceMotion" type="checkbox" /> Reducir animaciones</label>
+      <div class="danger-zone"><h3>Datos guardados</h3><button id="deleteRunBtn" class="danger-button">Borrar run actual</button><button id="deleteAllBtn" class="danger-button strong">Borrar todo el progreso</button><p>La segunda opción elimina también DATA, Archivo, logros y desbloqueos.</p></div>
+    </section>
+  </dialog>
+
+  <dialog id="endingDialog">
+    <section class="modal-card ending-card">
+      <div class="kicker" id="endingCategory">FINAL DE OPERACIÓN</div><h2 id="endingTitle"></h2><p id="endingText"></p>
+      <div id="endingStats" class="ending-stats"></div><div id="rewardSummary" class="reward-summary"></div>
+      <div class="modal-actions"><button id="endingArchiveBtn" class="ghost">Ver archivo</button><button id="restartBtn" class="primary">Nueva partida</button></div>
+    </section>
+  </dialog>
+
+  <script src="data.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

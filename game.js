@@ -1,0 +1,695 @@
+(function () {
+  'use strict';
+
+  const PROFILES_KEY = 'quiet-signal-profiles-v1';
+  const RUN_KEY = 'quiet-signal-run-v1';
+  const META_KEY = 'quiet-signal-meta-v1';
+  const SETTINGS_KEY = 'quiet-signal-settings-v1';
+  const LEGACY_RUN_KEY = 'quiet-signal-v02';
+  const D = window.QS_DATA;
+  const $ = id => document.getElementById(id);
+  const STATION_STATS = [['power','Potencia'],['integrity','Estructura'],['heat','Calefacción'],['comms','Comunicaciones'],['water','Agua']];
+  const OPERATOR_STATS = [['health','Salud',false],['hunger','Hambre',true],['thirst','Sed',true],['fatigue','Fatiga',true],['stress','Estrés',true]];
+  const RESOURCE_META = [['food','Raciones'],['waterReserve','Agua'],['fuel','Combustible'],['spareParts','Repuestos'],['medicalSupplies','Medicina'],['batteries','Baterías']];
+
+  let profileStore = initializeProfiles();
+  let activeProfile = profileStore.profiles.find(profile => profile.id === profileStore.selectedProfileId) || profileStore.profiles[0];
+  profileStore.selectedProfileId = activeProfile.id;
+  saveProfiles();
+  let profileRunKey = profileKey('run');
+  let profileMetaKey = profileKey('meta');
+  let meta = normalizeMeta(loadJson(profileMetaKey, createMeta()));
+  let settings = loadJson(SETTINGS_KEY, { textScale: 100, reduceMotion: false });
+  settings = { textScale: Number(settings?.textScale) || 100, reduceMotion: Boolean(settings?.reduceMotion) };
+  let run = loadJson(profileRunKey, null);
+  let currentEvent = null;
+
+  function createMeta() {
+    return {
+      data: 0, runsCompleted: 0, totalDaysSurvived: 0, bestRun: 0,
+      endingsFound: [], eventsDiscovered: [], loreDiscovered: [], achievements: [],
+      operatorsUnlocked: ['elena','marcus','noah'], scenariosUnlocked: ['winter','red','orbit'],
+      mutatorsUnlocked: [], perksUnlocked: [], unlocksPurchased: [], runHistory: []
+    };
+  }
+
+  function profileKey(kind, profileId = activeProfile?.id) { return `quiet-signal:${profileId}:${kind}`; }
+
+  function createProfile(name = 'Jugador 1') {
+    const now = new Date().toISOString();
+    return { id: `p-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, createdAt: now, lastPlayedAt: null };
+  }
+
+  function initializeProfiles() {
+    const existing = loadJson(PROFILES_KEY, null);
+    if (existing?.profiles?.length) return existing;
+    const profile = createProfile();
+    const store = { version: 1, selectedProfileId: profile.id, profiles: [profile] };
+    const legacyRun = loadJson(RUN_KEY, null) || migrateLegacyRun(loadJson(LEGACY_RUN_KEY, null));
+    const legacyMeta = loadJson(META_KEY, null);
+    if (legacyRun) localStorage.setItem(`quiet-signal:${profile.id}:run`, JSON.stringify(legacyRun));
+    if (legacyMeta) localStorage.setItem(`quiet-signal:${profile.id}:meta`, JSON.stringify(legacyMeta));
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(store));
+    return store;
+  }
+
+  function saveProfiles() { localStorage.setItem(PROFILES_KEY, JSON.stringify(profileStore)); }
+
+  function loadProfileState() {
+    profileRunKey = profileKey('run');
+    profileMetaKey = profileKey('meta');
+    meta = normalizeMeta(loadJson(profileMetaKey, createMeta()));
+    run = loadJson(profileRunKey, null);
+    currentEvent = null;
+    if (run && !run.complete) currentEvent = run.currentEventId === 'final_shift' ? finalEvent() : byId(D.events, run.currentEventId) || pickEvent();
+  }
+
+  function touchProfile() {
+    activeProfile.lastPlayedAt = new Date().toISOString();
+    saveProfiles();
+  }
+
+  function normalizeMeta(value) {
+    const base = createMeta();
+    if (!value || typeof value !== 'object') return base;
+    for (const key of Object.keys(base)) {
+      if (Array.isArray(base[key]) && !Array.isArray(value[key])) value[key] = [...base[key]];
+      else if (value[key] == null) value[key] = base[key];
+    }
+    return value;
+  }
+  meta = normalizeMeta(meta);
+
+  function loadJson(key, fallback) {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch (error) { console.warn(`No se pudo leer ${key}.`, error); return fallback; }
+  }
+
+  function saveRun() { if (run) { localStorage.setItem(profileRunKey, JSON.stringify(run)); touchProfile(); } }
+  function saveMeta() { localStorage.setItem(profileMetaKey, JSON.stringify(meta)); }
+  function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+  function clamp(value, min = 0, max = 100) { return Math.max(min, Math.min(max, Number(value) || 0)); }
+  function byId(collection, id) { return collection.find(item => item.id === id); }
+  function uniquePush(list, value) { if (!list.includes(value)) list.push(value); }
+  function randomItem(list) { return list[Math.floor(Math.random() * list.length)]; }
+  function esc(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function scenarioUnlocked(scenario) { return !scenario.locked || meta.scenariosUnlocked.includes(scenario.id) || meta.unlocksPurchased.includes(scenario.unlockId); }
+  function operatorUnlocked(operator) { return !operator.locked || meta.operatorsUnlocked.includes(operator.id) || meta.unlocksPurchased.includes(operator.unlockId); }
+
+  function selectObjectives() {
+    return [...D.objectives].sort(() => Math.random() - .5).slice(0, 3).map(objective => objective.id);
+  }
+
+  function migrateLegacyRun(legacy) {
+    if (!legacy || legacy.complete || typeof legacy.day !== 'number') return null;
+    const migrated = createRun({ scenario:'winter', operator:'elena', difficulty:'normal', mutators:[] });
+    migrated.day = clamp(legacy.day, 1, migrated.maxDays);
+    migrated.time = legacy.time || migrated.time;
+    migrated.signalKnowledge = clamp((legacy.signal || 0) * 8);
+    for (const key of Object.keys(migrated.station)) if (Number.isFinite(legacy[key])) migrated.station[key] = legacy[key];
+    for (const key of Object.keys(migrated.operator)) if (Number.isFinite(legacy[key])) migrated.operator[key] = legacy[key];
+    migrated.flags = { ...(legacy.flags || {}), legacy_run: true };
+    migrated.usedEvents = Array.isArray(legacy.used) ? [...legacy.used] : [];
+    migrated.history = Array.isArray(legacy.history) ? [...legacy.history, 'Partida migrada desde Prototype 0.2.'] : ['Partida migrada desde Prototype 0.2.'];
+    return migrated;
+  }
+
+  function createRun(config) {
+    const scenario = byId(D.scenarios, config.scenario);
+    const operator = byId(D.operators, config.operator);
+    const difficulty = byId(D.difficulties, config.difficulty);
+    const resourceScale = (difficulty.resources || 1) * (config.mutators.includes('scarcity') ? .75 : 1);
+    const resources = Object.fromEntries(Object.entries(scenario.start.resources).map(([key, value]) => [key, Math.max(0, Math.round(value * resourceScale))]));
+    return {
+      version: 1, startedAt: new Date().toISOString(), complete: false,
+      scenario: scenario.id, operatorId: operator.id, difficulty: difficulty.id, mutators: config.mutators,
+      day: 1, maxDays: scenario.days, time: '06:40', actionsRemaining: difficulty.actions,
+      station: { ...scenario.start.station }, operator: { ...operator.start }, resources,
+      signalKnowledge: 0, flags: Object.fromEntries((scenario.startFlags || []).map(flag => [flag, true])),
+      chainStages: {}, usedEvents: [], eventCooldowns: {}, currentEventId: null, eventResolved: false,
+      history: [`Día 1: ${operator.name} asumió el turno en K-27.`], counters: {}, loreFound: [], newEvents: [],
+      objectives: selectObjectives(), objectiveResults: [], ending: null, endingCategory: null
+    };
+  }
+
+  function startRun(config) {
+    if (run && !run.complete && !confirm('Hay una operación en curso. ¿Reemplazarla por una nueva?')) return false;
+    run = createRun(config);
+    currentEvent = pickEvent();
+    run.currentEventId = currentEvent.id;
+    discoverEvent(currentEvent.id);
+    saveRun();
+    closeDialog('newGameDialog');
+    hideMenu();
+    render();
+    return true;
+  }
+
+  function currentScenario() { return byId(D.scenarios, run.scenario); }
+  function currentOperator() { return byId(D.operators, run.operatorId); }
+  function currentDifficulty() { return byId(D.difficulties, run.difficulty); }
+
+  function requirementMet(requirements = {}) {
+    for (const [scope, values] of Object.entries(requirements)) {
+      if (scope === 'flags' && !values.every(flag => run.flags[flag])) return false;
+      if (scope === 'signalKnowledge' && run.signalKnowledge < values) return false;
+      if (scope === 'resources' || scope === 'station' || scope === 'operator') {
+        if (Object.entries(values).some(([key, value]) => run[scope][key] < value)) return false;
+      }
+    }
+    return true;
+  }
+
+  function eventEligible(event) {
+    if (run.day < event.minDay || run.day > event.maxDay) return false;
+    if (event.scenario && !event.scenario.includes(run.scenario)) return false;
+    if (event.flagsRequired && event.flagsRequired.some(flag => !run.flags[flag])) return false;
+    if (event.flagsBlocked && event.flagsBlocked.some(flag => run.flags[flag])) return false;
+    if (event.oncePerRun && run.usedEvents.includes(event.id)) return false;
+    if (event.cooldown && run.day - (run.eventCooldowns[event.id] || -99) < event.cooldown) return false;
+    if (event.chain && (run.chainStages[event.chain.id] || 0) !== event.chain.stage - 1) return false;
+    return true;
+  }
+
+  function eventWeight(event) {
+    let weight = event.weight || 10;
+    if (run.mutators.includes('constant_storm') && event.category === 'clima') weight *= 2;
+    if (run.mutators.includes('paranoia') && event.category === 'psicológico') weight *= 2;
+    if (run.scenario === 'orbit' && ['comunicaciones','señal'].includes(event.category)) weight *= 1.5;
+    return weight;
+  }
+
+  function weightedPick(events) {
+    const total = events.reduce((sum, event) => sum + eventWeight(event), 0);
+    let cursor = Math.random() * total;
+    for (const event of events) { cursor -= eventWeight(event); if (cursor <= 0) return event; }
+    return events[events.length - 1];
+  }
+
+  function pickEvent() {
+    if (run.day > run.maxDays) return finalEvent();
+    const available = D.events.filter(eventEligible);
+    if (available.length) return weightedPick(available);
+    return D.events.find(event => !run.usedEvents.includes(event.id)) || D.events[0];
+  }
+
+  function finalEvent() {
+    const choices = [
+      { title:'Esperar al relevo', desc:'Cerrar el turno y entregar la estación.', hint:'FINAL · SUPERVIVENCIA', endingResolver: () => Object.values(run.station).every(v => v >= 60) ? 'station_kept' : 'evacuation' },
+      { title:'Responder a 14.827', desc:'Transmitir una pregunta y aceptar la respuesta.', hint:'Requiere señal 55% y comunicaciones 35', ending:'contact', requirements:{signalKnowledge:55,station:{comms:35}} },
+      { title:'Descender bajo el hielo', desc:'Abrir la puerta circular antes de que llegue el relevo.', hint:'Requiere cadena Golpes bajo el hielo', ending:'under_ice', requirements:{flags:['under_ice_ready']} },
+      { title:'Liberar el Archivo', desc:'Enviar registros por todos los canales disponibles.', hint:'Requiere señal 40% y comunicaciones 50', ending:'broadcast', requirements:{signalKnowledge:40,station:{comms:50}} },
+      { title:'Autorizar la respuesta futura', desc:'Dejar que el mensaje complete su recorrido.', hint:'Requiere cadena Eco adelantado', ending:'something_answered', requirements:{flags:['something_answered']} }
+    ];
+    return { id:'final_shift', category:'misterio', title:'El relevo cruza el último paso', text:'Las luces del convoy aparecen en el valle. Antes de cerrar el turno, 14.827 emite una secuencia completa. La estación espera una última decisión.', weather:'AMANECER · VIENTO CALMO', choices };
+  }
+
+  function applyDelta(target, changes, multiplier = 1) {
+    if (!changes) return;
+    for (const [key, value] of Object.entries(changes)) target[key] = (target[key] || 0) + value * (value > 0 ? multiplier : 1);
+  }
+
+  function applyEffects(effects = {}, category = '') {
+    const operator = currentOperator();
+    const scenario = currentScenario();
+    applyDelta(run.station, effects.station);
+    if (effects.operator) {
+      const adjusted = { ...effects.operator };
+      if (adjusted.stress > 0) adjusted.stress *= (operator.effects.stressGain || 1) * (scenario.modifiers.stressGain || 1) * (run.mutators.includes('paranoia') ? 1.3 : 1) * (category === 'señal' ? operator.effects.signalStress || 1 : 1);
+      applyDelta(run.operator, adjusted);
+    }
+    applyDelta(run.resources, effects.resources);
+    if (effects.signalKnowledge) {
+      let gain = effects.signalKnowledge * (operator.effects.signalGain || 1) * (scenario.modifiers.signalGain || 1);
+      if (run.mutators.includes('interference')) gain *= .75;
+      run.signalKnowledge += gain;
+    }
+  }
+
+  function normalizeRun() {
+    for (const key of Object.keys(run.station)) run.station[key] = clamp(run.station[key]);
+    for (const key of Object.keys(run.operator)) run.operator[key] = clamp(run.operator[key]);
+    for (const key of Object.keys(run.resources)) run.resources[key] = Math.max(0, Math.round(run.resources[key]));
+    run.signalKnowledge = clamp(run.signalKnowledge);
+  }
+
+  function discoverEvent(id) {
+    if (!meta.eventsDiscovered.includes(id)) { meta.eventsDiscovered.push(id); uniquePush(run.newEvents, id); saveMeta(); }
+  }
+
+  function discoverLore(id) {
+    if (!id) return;
+    uniquePush(run.loreFound, id);
+    uniquePush(meta.loreDiscovered, id);
+    saveMeta();
+  }
+
+  function chooseEvent(choice) {
+    if (!requirementMet(choice.requirements)) return;
+    if (choice.ending || choice.endingResolver) { finishRun(choice.ending || choice.endingResolver()); return; }
+    applyEffects(choice.effects, currentEvent.category);
+    for (const flag of choice.flagsAdd || []) run.flags[flag] = true;
+    if (choice.chain) run.chainStages[choice.chain.id] = choice.chain.stage;
+    for (const [key, value] of Object.entries(choice.counters || {})) run.counters[key] = (run.counters[key] || 0) + value;
+    discoverLore(choice.lore);
+    run.usedEvents.push(currentEvent.id);
+    run.eventCooldowns[currentEvent.id] = run.day;
+    run.history.push(`Día ${run.day}: ${choice.title}.`);
+    run.eventResolved = true;
+    normalizeRun();
+    const failure = checkFailure();
+    if (failure) finishRun(failure); else { saveRun(); render(); }
+  }
+
+  const ACTIONS = [
+    { id:'repair', name:'Reparar sistema crítico', hint:'Repuestos −1 · sistema más bajo +10–16', available:r=>r.resources.spareParts>=1, perform:r=>{ const key=STATION_STATS.map(x=>x[0]).sort((a,b)=>r.station[a]-r.station[b])[0]; let amount=12*(currentOperator().effects.repair||1); if(key==='comms') amount*=currentOperator().effects.commsRepair||1; r.resources.spareParts--; r.station[key]+=amount; r.operator.fatigue+=5; r.counters.repairs=(r.counters.repairs||0)+1; return `Reparaste ${STATION_STATS.find(x=>x[0]===key)[1].toLowerCase()}.`; } },
+    { id:'eat', name:'Comer', hint:'Raciones −1 · hambre −28', available:r=>r.resources.food>=1, perform:r=>{r.resources.food--;r.operator.hunger-=28;return 'Comiste una ración caliente.';} },
+    { id:'drink', name:'Beber', hint:'Agua −1 · sed −32', available:r=>r.resources.waterReserve>=1, perform:r=>{r.resources.waterReserve--;r.operator.thirst-=32;return 'Usaste una reserva de agua.';} },
+    { id:'sleep', name:'Dormir', hint:'fatiga −27 · estrés −4', perform:r=>{r.operator.fatigue-=27;r.operator.stress-=4;r.counters.sleep=(r.counters.sleep||0)+1;return 'Dormiste durante parte del turno.';} },
+    { id:'explore', name:'Explorar exterior', hint:'riesgo físico · recursos posibles', available:r=>!r.flags.main_exit_closed, perform:r=>{const gain=randomItem([{food:2},{fuel:6},{spareParts:1},{batteries:2}]);applyDelta(r.resources,gain);r.operator.fatigue+=9*(currentOperator().effects.outsideFatigue||1);r.operator.thirst+=5;r.counters.explore=(r.counters.explore||0)+1;return `Exploraste el perímetro y recuperaste ${Object.values(gain)[0]} unidad(es).`;} },
+    { id:'logs', name:'Revisar registros', hint:'señal +2–4 · fatiga +3', perform:r=>{r.signalKnowledge+=3*(currentOperator().effects.signalGain||1);r.operator.fatigue+=3;return 'Comparaste registros históricos.';} },
+    { id:'antenna', name:'Ajustar antena', hint:'baterías −1 · comunicaciones +8 · señal +3', available:r=>r.resources.batteries>=1, perform:r=>{r.resources.batteries--;r.station.comms+=8*(currentOperator().effects.commsRepair||1);r.signalKnowledge+=3*(currentOperator().effects.signalGain||1);r.counters.transmissions=(r.counters.transmissions||0)+1;return 'Ajustaste la antena principal.';} },
+    { id:'maintenance', name:'Mantenimiento general', hint:'repuestos −1 · todos los sistemas +2–4', available:r=>r.resources.spareParts>=1, perform:r=>{r.resources.spareParts--;for(const key of Object.keys(r.station))r.station[key]+=3*(currentOperator().effects.repair||1);r.operator.fatigue+=6;r.counters.repairs=(r.counters.repairs||0)+1;return 'Realizaste mantenimiento preventivo.';} },
+    { id:'investigate', name:'Investigar señal', hint:'potencia −4 · señal +5–8 · estrés +3', available:r=>r.station.power>=5, perform:r=>{r.station.power-=4;r.signalKnowledge+=6*(currentOperator().effects.signalGain||1)*(r.mutators.includes('interference')?.75:1);r.operator.stress+=3*(currentOperator().effects.stressGain||1);r.counters.transmissions=(r.counters.transmissions||0)+1;return 'Aislaste otro patrón de 14.827.';} },
+    { id:'craft', name:'Fabricar pieza', hint:'baterías −1 · combustible −2 · repuestos +1', available:r=>r.resources.batteries>=1&&r.resources.fuel>=2, perform:r=>{r.resources.batteries--;r.resources.fuel-=2;r.resources.spareParts++;r.operator.fatigue+=5;return 'Fabricaste un repuesto compatible.';} },
+    { id:'rest', name:'Descansar', hint:'fatiga −12 · estrés −7', perform:r=>{r.operator.fatigue-=12;r.operator.stress-=7;return 'Te apartaste de las consolas un momento.';} },
+    { id:'treat', name:'Tratar lesión', hint:'medicina −1 · salud +20', available:r=>r.resources.medicalSupplies>=1&&r.operator.health<95, perform:r=>{r.resources.medicalSupplies--;r.operator.health+=20;r.counters.meds=(r.counters.meds||0)+1;return 'Usaste el equipo médico de campaña.';} }
+  ];
+
+  function performAction(action) {
+    if (run.actionsRemaining <= 0 || (action.available && !action.available(run))) return;
+    const message = action.perform(run);
+    run.actionsRemaining--;
+    run.history.push(`Día ${run.day}: ${message}`);
+    normalizeRun();
+    const failure = checkFailure();
+    if (failure) finishRun(failure); else { saveRun(); render(); }
+  }
+
+  function applyDailyUpkeep() {
+    const difficulty = currentDifficulty();
+    const scenario = currentScenario();
+    let wear = difficulty.wear * (scenario.modifiers.eventDanger || 1);
+    if (run.mutators.includes('constant_storm')) wear *= 1.25;
+    const heatWear = wear * (scenario.modifiers.heatWear || 1) * (run.mutators.includes('extreme_temp') ? 1.5 : 1);
+    run.resources.fuel -= 3;
+    run.resources.waterReserve -= 1;
+    run.station.integrity -= 3 * wear;
+    run.station.comms -= 2.5 * wear;
+    run.station.water -= 2 * wear;
+    run.station.heat -= 3 * heatWear;
+    if (run.resources.fuel <= 0) { run.station.power -= 10 * wear; run.station.heat -= 7 * heatWear; }
+    else run.station.power -= 3 * wear;
+    const needs = difficulty.needs;
+    run.operator.hunger += 11 * needs * (currentOperator().effects.hungerGain || 1);
+    run.operator.thirst += 12 * needs;
+    run.operator.fatigue += 9 * needs;
+    run.operator.stress += 3 * needs * (currentOperator().effects.stressGain || 1);
+    if (run.resources.waterReserve <= 0) run.operator.thirst += 8;
+    if (run.station.heat < 35) { run.operator.health -= 6; run.operator.fatigue += 5; }
+    if (run.operator.hunger > 72) run.operator.health -= 5;
+    if (run.operator.thirst > 75) run.operator.health -= 9;
+    if (run.operator.fatigue > 82) { run.operator.health -= 3; run.operator.stress += 6; }
+    if (run.operator.stress > 88) run.operator.health -= 4;
+  }
+
+  function endDay() {
+    if (!run.eventResolved) return;
+    applyDailyUpkeep();
+    normalizeRun();
+    const failure = checkFailure();
+    if (failure) { finishRun(failure); return; }
+    run.day++;
+    const difficulty = currentDifficulty();
+    run.actionsRemaining = difficulty.id === 'extreme' && run.day % 3 === 0 ? difficulty.severeActions : difficulty.actions;
+    run.time = run.day % 3 === 0 ? '21:30' : run.day % 2 === 0 ? '14:10' : '07:20';
+    run.eventResolved = false;
+    currentEvent = pickEvent();
+    run.currentEventId = currentEvent.id;
+    discoverEvent(currentEvent.id);
+    saveRun();
+    render();
+  }
+
+  function checkFailure() {
+    if (run.operator.health <= 4) return 'medical';
+    if (run.station.heat <= 3 && run.station.power <= 10) return 'freeze';
+    if (run.resources.waterReserve <= 0 && run.operator.thirst >= 96) return 'dehydration';
+    if (run.operator.stress >= 100) return 'breakdown';
+    return null;
+  }
+
+  function calculateObjectives() {
+    return run.objectives.map(id => byId(D.objectives, id).test(run));
+  }
+
+  function finishRun(endingId) {
+    if (run.complete) return;
+    const ending = byId(D.endings, endingId) || byId(D.endings, 'evacuation');
+    normalizeRun();
+    run.complete = true;
+    run.ending = ending.id;
+    run.endingCategory = ending.category;
+    run.objectiveResults = calculateObjectives();
+    const newEnding = !meta.endingsFound.includes(ending.id);
+    uniquePush(meta.endingsFound, ending.id);
+    meta.runsCompleted++;
+    meta.totalDaysSurvived += Math.min(run.day, run.maxDays);
+    meta.bestRun = Math.max(meta.bestRun, Math.min(run.day, run.maxDays));
+    const difficulty = currentDifficulty();
+    const mutatorBonus = run.mutators.reduce((sum, id) => sum + (byId(D.mutators, id)?.reward || 0), 0);
+    const baseData = Math.min(run.day, run.maxDays) * 2 + run.objectiveResults.filter(Boolean).length * 20 + run.newEvents.length + run.loreFound.length * 5 + (newEnding ? 30 : 0);
+    const dataEarned = Math.round(baseData * difficulty.reward * (1 + mutatorBonus));
+    meta.data += dataEarned;
+    const history = { operator:currentOperator().name, scenario:currentScenario().name, days:Math.min(run.day,run.maxDays), ending:ending.title, endingId:ending.id, objectives:run.objectiveResults.filter(Boolean).length, difficulty:difficulty.name, data:dataEarned, date:new Date().toISOString() };
+    meta.runHistory.unshift(history);
+    meta.runHistory = meta.runHistory.slice(0,20);
+    for (const achievement of D.achievements) if (!meta.achievements.includes(achievement.id) && achievement.test(run,meta)) meta.achievements.push(achievement.id);
+    saveRun(); saveMeta();
+    $('endingCategory').textContent = ending.category;
+    $('endingTitle').textContent = ending.title;
+    $('endingText').textContent = ending.text;
+    $('endingStats').innerHTML = `<span>Día ${Math.min(run.day,run.maxDays)} / ${run.maxDays}</span><span>Señal ${Math.round(run.signalKnowledge)}%</span><span>Salud ${Math.round(run.operator.health)}</span><span>Estación ${Math.round(average(Object.values(run.station)))}</span><span>Objetivos ${run.objectiveResults.filter(Boolean).length}/3</span><span>${difficulty.name}</span>`;
+    $('rewardSummary').innerHTML = `<strong>+${dataEarned} DATA</strong><span>${newEnding ? 'Nuevo final archivado.' : 'Final ya conocido.'}</span>`;
+    $('endingDialog').showModal();
+  }
+
+  function statusText(value, inverted = false) {
+    const effective = inverted ? 100 - value : value;
+    return effective >= 70 ? 'Estable' : effective >= 45 ? 'Atención' : effective >= 25 ? 'Grave' : 'Crítico';
+  }
+
+  function meter(key, label, inverted, scope) {
+    const value = clamp(run[scope][key]);
+    const effective = inverted ? 100 - value : value;
+    const severity = effective < 25 ? 'bad' : effective < 50 ? 'warn' : 'good';
+    const row = document.createElement('div');
+    row.className = 'meter-row';
+    row.innerHTML = `<div class="meter-head"><span class="meter-label">${label}</span><strong>${Math.round(value)}</strong></div><div class="meter"><div class="meter-fill ${severity}" style="width:${value}%"></div></div><span class="meter-state ${severity}">${statusText(value,inverted)}</span>`;
+    return row;
+  }
+
+  function renderMeters() {
+    $('stationStats').replaceChildren(...STATION_STATS.map(([key,label]) => meter(key,label,false,'station')));
+    $('operatorStats').replaceChildren(...OPERATOR_STATS.map(([key,label,inverted]) => meter(key,label,inverted,'operator')));
+    const stationAverage = average(Object.values(run.station));
+    const risk = average([100-run.operator.health,run.operator.hunger,run.operator.thirst,run.operator.fatigue,run.operator.stress]);
+    setStatus($('stationStatus'), stationAverage > 70 ? 'ESTABLE' : stationAverage > 45 ? 'DEGRADADA' : 'CRÍTICA', stationAverage);
+    setStatus($('operatorStatus'), risk < 35 ? 'FUNCIONAL' : risk < 60 ? 'EXIGIDO' : 'CRÍTICO', 100-risk);
+  }
+
+  function setStatus(element, text, effective) {
+    element.textContent = text;
+    element.className = `status-pill ${effective < 30 ? 'bad' : effective < 55 ? 'warn' : 'good'}`;
+  }
+
+  function average(values) { return values.reduce((a,b)=>a+b,0)/values.length; }
+
+  function renderResources() {
+    $('resources').replaceChildren(...RESOURCE_META.map(([key,label]) => {
+      const item = document.createElement('div');
+      item.className = `resource ${run.resources[key] <= 2 ? 'low' : ''}`;
+      item.innerHTML = `<span>${label}</span><strong>${Math.max(0,Math.round(run.resources[key]))}</strong>`;
+      return item;
+    }));
+  }
+
+  function renderObjectives() {
+    $('objectives').replaceChildren(...run.objectives.map(id => {
+      const objective = byId(D.objectives,id);
+      const complete = objective.test(run);
+      const item = document.createElement('div');
+      item.className = `objective ${complete ? 'complete' : ''}`;
+      item.innerHTML = `<span>${complete?'✓':'○'}</span><p>${esc(objective.text)}</p>`;
+      return item;
+    }));
+  }
+
+  function renderActions() {
+    $('actionsCounter').textContent = `${run.actionsRemaining} ${run.actionsRemaining === 1 ? 'restante' : 'restantes'}`;
+    $('dailyActions').replaceChildren(...ACTIONS.map(action => {
+      const button = document.createElement('button');
+      const available = run.actionsRemaining > 0 && (!action.available || action.available(run));
+      button.className = 'daily-action'; button.disabled = !available;
+      button.innerHTML = `<strong>${esc(action.name)}</strong><span>${esc(action.hint)}</span>`;
+      button.onclick = () => performAction(action);
+      return button;
+    }));
+  }
+
+  function contextHint() {
+    const warnings = [];
+    if(run.station.power<35)warnings.push('potencia baja'); if(run.station.heat<35)warnings.push('calefacción inestable');
+    if(run.resources.fuel<7)warnings.push('combustible escaso'); if(run.resources.waterReserve<4)warnings.push('reserva de agua escasa');
+    if(run.operator.thirst>65)warnings.push('deshidratación'); if(run.operator.hunger>65)warnings.push('hambre severa');
+    if(run.operator.fatigue>70)warnings.push('fatiga extrema'); if(run.operator.stress>70)warnings.push('estrés extremo');
+    return warnings.length ? `Advertencia: ${warnings.join(' · ')}` : 'Sin alertas críticas activas.';
+  }
+
+  function renderEvent() {
+    $('chapterLabel').textContent = run.day > run.maxDays ? 'CIERRE DE OPERACIÓN' : `DÍA ${run.day} · ${run.time}`;
+    $('weatherLabel').textContent = currentEvent.weather || currentScenario().weather;
+    $('weatherCaption').textContent = currentEvent.weather || currentScenario().weather;
+    $('eventCategory').textContent = (currentEvent.category || 'evento').toUpperCase();
+    $('eventRarity').textContent = currentEvent.chain ? `CADENA · ETAPA ${currentEvent.chain.stage}` : '';
+    $('eventTitle').textContent = currentEvent.title;
+    $('eventText').textContent = currentEvent.text;
+    $('contextLine').textContent = contextHint();
+    if (run.eventResolved) {
+      $('choices').innerHTML = '<div class="resolved-event">La decisión quedó registrada. Podés usar las acciones restantes o cerrar el día.</div>';
+      $('endDayBtn').hidden = false;
+    } else {
+      $('choices').replaceChildren(...currentEvent.choices.map(choice => {
+        const enabled = requirementMet(choice.requirements);
+        const button = document.createElement('button');
+        button.className = 'choice'; button.disabled = !enabled;
+        button.innerHTML = `<div><strong>${esc(choice.title)}</strong><span>${esc(choice.desc)}</span></div><em>${esc(enabled ? choice.hint : 'Requisitos no cumplidos')}</em>`;
+        button.onclick = () => chooseEvent(choice);
+        return button;
+      }));
+      $('endDayBtn').hidden = true;
+    }
+  }
+
+  function renderLog() {
+    $('log').replaceChildren(...run.history.slice().reverse().map(text => {
+      const entry = document.createElement('div'); entry.className = 'log-entry'; entry.textContent = text; return entry;
+    }));
+  }
+
+  function renderIntel() {
+    $('intelText').textContent = run.signalKnowledge < 20 ? '14.827 parece ruido estructurado. Todavía faltan patrones.' : run.signalKnowledge < 50 ? 'La señal contiene tiempos, coordenadas y repeticiones que no encajan con una transmisión normal.' : run.signalKnowledge < 80 ? 'Los fragmentos sugieren que 14.827 no describe una frecuencia, sino una relación entre registros.' : 'La señal reconoce decisiones tomadas en otras operaciones. Ninguna run revela el patrón completo.';
+    const flags = Object.keys(run.flags).filter(key => run.flags[key]);
+    $('flagsList').replaceChildren(...(flags.length ? flags.map(flag => { const span=document.createElement('span');span.className='flag';span.textContent=flag.replaceAll('_',' ');return span; }) : [Object.assign(document.createElement('span'),{className:'flag',textContent:'Sin hallazgos'})]));
+  }
+
+  function render() {
+    if (!run) return;
+    normalizeRun();
+    $('dayValue').textContent = `${Math.min(run.day,run.maxDays)} / ${run.maxDays}`;
+    $('timeValue').textContent = run.time;
+    $('actionsValue').textContent = `${run.actionsRemaining} / ${currentDifficulty().actions}`;
+    $('signalValue').textContent = `${Math.round(run.signalKnowledge)}%`;
+    $('runContext').textContent = `${currentScenario().name} · ${currentDifficulty().name}`;
+    $('sceneCaption').textContent = `Estación K-27 · ${currentScenario().name}`;
+    $('operatorKicker').textContent = `OPERADOR · ${currentOperator().name.toUpperCase()}`;
+    $('traitSummary').innerHTML = `<span>＋ ${esc(currentOperator().positive)}</span><span>− ${esc(currentOperator().negative)}</span>`;
+    renderMeters(); renderResources(); renderObjectives(); renderActions(); renderEvent(); renderLog(); renderIntel();
+    saveRun();
+  }
+
+  function formatProfileDate(isoDate) {
+    if (!isoDate) return 'Sin partidas todavía';
+    return `Última partida: ${new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(isoDate))}`;
+  }
+
+  function openProfiles() {
+    renderProfiles();
+    $('profileDialog').showModal();
+  }
+
+  function renderProfiles() {
+    $('profilesList').replaceChildren(...profileStore.profiles.map(profile => {
+      const row = document.createElement('div');
+      row.className = `profile-row ${profile.id === activeProfile.id ? 'active' : ''}`;
+      const info = document.createElement('div');
+      info.innerHTML = `<strong>${esc(profile.name)}</strong><small>${formatProfileDate(profile.lastPlayedAt)}</small>`;
+      const select = document.createElement('button');
+      select.className = 'profile-select'; select.type = 'button';
+      select.textContent = profile.id === activeProfile.id ? 'Activo' : 'Seleccionar';
+      select.disabled = profile.id === activeProfile.id;
+      select.onclick = () => switchProfile(profile.id);
+      const rename = document.createElement('button');
+      rename.className = 'profile-action'; rename.type = 'button'; rename.textContent = 'Renombrar';
+      rename.onclick = () => renameProfile(profile.id);
+      const remove = document.createElement('button');
+      remove.className = 'profile-action profile-delete'; remove.type = 'button'; remove.textContent = 'Eliminar';
+      remove.disabled = profileStore.profiles.length === 1;
+      remove.onclick = () => deleteProfile(profile.id);
+      row.append(info, select, rename, remove);
+      return row;
+    }));
+  }
+
+  function switchProfile(profileId) {
+    if (profileId === activeProfile.id) return;
+    saveRun();
+    const next = profileStore.profiles.find(profile => profile.id === profileId);
+    if (!next) return;
+    activeProfile = next;
+    profileStore.selectedProfileId = next.id;
+    saveProfiles();
+    loadProfileState();
+    closeDialog('profileDialog');
+    showMenu();
+  }
+
+  function profileNameFromPrompt(current = '') {
+    const raw = prompt(current ? 'Nuevo nombre del perfil (1–24 caracteres):' : 'Nombre del nuevo perfil (1–24 caracteres):', current);
+    if (raw === null) return null;
+    const value = raw.trim();
+    if (!value || value.length > 24) { if (value) alert('El nombre debe tener entre 1 y 24 caracteres.'); return null; }
+    return value;
+  }
+
+  function createLocalProfile() {
+    if (profileStore.profiles.length >= 10) { alert('Alcanzaste el máximo de 10 perfiles locales.'); return; }
+    const name = profileNameFromPrompt();
+    if (!name) return;
+    const profile = createProfile(name);
+    profileStore.profiles.push(profile);
+    saveProfiles();
+    switchProfile(profile.id);
+  }
+
+  function renameProfile(profileId) {
+    const profile = profileStore.profiles.find(item => item.id === profileId);
+    if (!profile) return;
+    const name = profileNameFromPrompt(profile.name);
+    if (!name) return;
+    profile.name = name;
+    saveProfiles();
+    renderProfiles();
+    showMenu();
+  }
+
+  function deleteProfile(profileId) {
+    if (profileStore.profiles.length === 1) { alert('No podés eliminar el último perfil.'); return; }
+    const profile = profileStore.profiles.find(item => item.id === profileId);
+    if (!profile || !confirm(`Eliminar “${profile.name}” borrará permanentemente su partida, DATA, Archivo y logros. ¿Continuar?`)) return;
+    localStorage.removeItem(profileKey('run', profileId));
+    localStorage.removeItem(profileKey('meta', profileId));
+    profileStore.profiles = profileStore.profiles.filter(item => item.id !== profileId);
+    if (activeProfile.id === profileId) {
+      activeProfile = profileStore.profiles[0];
+      profileStore.selectedProfileId = activeProfile.id;
+      loadProfileState();
+    }
+    saveProfiles();
+    renderProfiles();
+    showMenu();
+  }
+
+  function showMenu() {
+    $('mainMenu').classList.remove('hidden');
+    const active = run && !run.complete;
+    $('continueBtn').disabled = !active;
+    $('continueBtn').textContent = active ? `Continuar · Día ${run.day}` : 'Continuar';
+    $('metaSummary').innerHTML = `<span>${meta.data} DATA</span><span>${meta.runsCompleted} runs</span><span>${meta.endingsFound.length}/${D.endings.length} finales</span>`;
+    $('activeProfileName').textContent = activeProfile.name;
+    $('activeProfileMeta').textContent = `${formatProfileDate(activeProfile.lastPlayedAt)} · ${profileStore.profiles.length} perfil${profileStore.profiles.length === 1 ? '' : 'es'}`;
+  }
+  function hideMenu() { $('mainMenu').classList.add('hidden'); }
+
+  function renderNewGame() {
+    const radioCards = (items,name,isUnlocked) => items.map((item,index) => {
+      const unlocked = isUnlocked(item);
+      return `<label class="select-card ${unlocked?'':'locked'}"><input type="radio" name="${name}" value="${item.id}" ${unlocked&&index===items.findIndex(isUnlocked)?'checked':''} ${unlocked?'':'disabled'}><strong>${esc(item.name)}</strong><span>${esc(item.description)}</span>${unlocked?'':'<em>BLOQUEADO</em>'}</label>`;
+    }).join('');
+    $('scenarioOptions').innerHTML = radioCards(D.scenarios,'scenario',scenarioUnlocked);
+    $('operatorOptions').innerHTML = radioCards(D.operators,'operator',operatorUnlocked);
+    $('difficultyOptions').innerHTML = radioCards(D.difficulties,'difficulty',()=>true);
+    const unlockedMutators = D.mutators.filter(mutator => meta.mutatorsUnlocked.includes(mutator.id));
+    $('mutatorOptions').innerHTML = unlockedMutators.length ? unlockedMutators.map(mutator => `<label class="mutator-option"><input type="checkbox" name="mutator" value="${mutator.id}"><span><strong>${esc(mutator.name)}</strong><small>${esc(mutator.description)} · +${Math.round(mutator.reward*100)}% DATA</small></span></label>`).join('') : '<p class="empty-copy">Todavía no desbloqueaste mutadores.</p>';
+    updateRunPreview();
+    $('newGameDialog').showModal();
+  }
+
+  function updateRunPreview() {
+    const form = new FormData($('newGameForm'));
+    const scenario = byId(D.scenarios,form.get('scenario'));
+    const operator = byId(D.operators,form.get('operator'));
+    const difficulty = byId(D.difficulties,form.get('difficulty'));
+    if (!scenario || !operator || !difficulty) return;
+    const mutators = form.getAll('mutator');
+    const bonus = mutators.reduce((sum,id)=>sum+(byId(D.mutators,id)?.reward||0),0);
+    $('runPreview').innerHTML = `<span>${esc(scenario.name)}</span><span>${esc(operator.name)}</span><span>${esc(difficulty.name)}</span><strong>${difficulty.actions} acciones/día · ×${(difficulty.reward*(1+bonus)).toFixed(2)} DATA</strong>`;
+  }
+
+  function openArchive() {
+    $('archiveSummary').innerHTML = `<div><span>DATA</span><strong>${meta.data}</strong></div><div><span>RUNS</span><strong>${meta.runsCompleted}</strong></div><div><span>DÍAS</span><strong>${meta.totalDaysSurvived}</strong></div><div><span>EVENTOS</span><strong>${meta.eventsDiscovered.length}/${D.events.length}</strong></div>`;
+    $('unlocksList').replaceChildren(...D.unlocks.map(unlock => {
+      const purchased = meta.unlocksPurchased.includes(unlock.id);
+      const button = document.createElement('button');
+      button.className = 'unlock'; button.disabled = purchased || meta.data < unlock.cost;
+      button.innerHTML = `<span><strong>${esc(unlock.name)}</strong><small>${esc(unlock.description)}</small></span><em>${purchased?'ADQUIRIDO':`${unlock.cost} DATA`}</em>`;
+      button.onclick = () => purchaseUnlock(unlock);
+      return button;
+    }));
+    $('endingsArchive').innerHTML = D.endings.map(ending => meta.endingsFound.includes(ending.id) ? `<div class="known"><strong>${esc(ending.title)}</strong><span>${ending.category}</span></div>` : '<div><strong>???</strong><span>Final desconocido</span></div>').join('');
+    $('achievementsArchive').innerHTML = D.achievements.map(a => meta.achievements.includes(a.id) ? `<div class="known"><strong>${esc(a.name)}</strong><span>${esc(a.description)}</span></div>` : '<div><strong>???</strong><span>Logro desconocido</span></div>').join('');
+    const loreIds = [...new Set(D.events.map(event => event.choices.map(choice => choice.lore)).flat().filter(Boolean))];
+    $('loreArchive').innerHTML = loreIds.map(id => meta.loreDiscovered.includes(id) ? `<div class="known"><strong>${esc(id.replaceAll('_',' '))}</strong><span>Fragmento recuperado</span></div>` : '<div><strong>???</strong><span>Fragmento no encontrado</span></div>').join('');
+    $('runHistory').innerHTML = meta.runHistory.length ? meta.runHistory.map(item => `<div><strong>${esc(item.ending)}</strong><span>${esc(item.operator)} · ${esc(item.scenario)}</span><span>${item.difficulty} · ${item.days} días · ${item.objectives}/3 objetivos</span><em>+${item.data} DATA</em></div>`).join('') : '<p class="empty-copy">Todavía no hay operaciones archivadas.</p>';
+    $('archiveDialog').showModal();
+  }
+
+  function purchaseUnlock(unlock) {
+    if (meta.data < unlock.cost || meta.unlocksPurchased.includes(unlock.id)) return;
+    if (!confirm(`¿Desbloquear “${unlock.name}” por ${unlock.cost} DATA?`)) return;
+    meta.data -= unlock.cost;
+    meta.unlocksPurchased.push(unlock.id);
+    if (unlock.type === 'scenario') uniquePush(meta.scenariosUnlocked, unlock.id.replace('scenario_',''));
+    if (unlock.type === 'operator') uniquePush(meta.operatorsUnlocked, unlock.id.replace('operator_',''));
+    if (unlock.type === 'mutator') uniquePush(meta.mutatorsUnlocked, unlock.target);
+    saveMeta(); openArchiveRefresh();
+  }
+
+  function openArchiveRefresh() { $('archiveDialog').close(); openArchive(); }
+  function openSettings() { $('textScale').value=String(settings.textScale);$('reduceMotion').checked=settings.reduceMotion;$('settingsDialog').showModal(); }
+  function applySettings() { document.documentElement.style.setProperty('--text-scale',`${settings.textScale/100}`);document.body.classList.toggle('reduce-motion',settings.reduceMotion); }
+  function closeDialog(id) { const dialog=$(id);if(dialog.open)dialog.close(); }
+
+  $('continueBtn').onclick = () => { if(run&&!run.complete){ currentEvent = run.currentEventId==='final_shift'?finalEvent():byId(D.events,run.currentEventId)||pickEvent();hideMenu();render(); } };
+  $('newGameBtn').onclick = renderNewGame;
+  $('menuArchiveBtn').onclick = openArchive;
+  $('menuSettingsBtn').onclick = openSettings;
+  $('changeProfileBtn').onclick = openProfiles;
+  $('createProfileBtn').onclick = createLocalProfile;
+  $('archiveBtn').onclick = openArchive;
+  $('settingsBtn').onclick = openSettings;
+  $('menuBtn').onclick = showMenu;
+  $('endDayBtn').onclick = endDay;
+  $('restartBtn').onclick = () => { closeDialog('endingDialog');renderNewGame(); };
+  $('endingArchiveBtn').onclick = () => { closeDialog('endingDialog');openArchive(); };
+
+  $('newGameForm').addEventListener('change', updateRunPreview);
+  $('newGameForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    startRun({scenario:form.get('scenario'),operator:form.get('operator'),difficulty:form.get('difficulty'),mutators:form.getAll('mutator')});
+  });
+
+  $('textScale').onchange = event => { settings.textScale=Number(event.target.value);saveSettings();applySettings(); };
+  $('reduceMotion').onchange = event => { settings.reduceMotion=event.target.checked;saveSettings();applySettings(); };
+  $('deleteRunBtn').onclick = () => { if(!run||run.complete){alert('No hay una run activa.');return;}if(confirm('¿Borrar únicamente la run actual? El Archivo y la DATA se conservarán.')){localStorage.removeItem(profileRunKey);run=null;closeDialog('settingsDialog');showMenu();} };
+  $('deleteAllBtn').onclick = () => { const answer=prompt('Esta acción elimina el progreso de este perfil. Escribí BORRAR TODO para confirmar.');if(answer==='BORRAR TODO'){localStorage.removeItem(profileRunKey);localStorage.removeItem(profileMetaKey);run=null;meta=createMeta();saveMeta();closeDialog('settingsDialog');showMenu();} };
+
+  document.querySelectorAll('[data-close]').forEach(button => button.onclick = () => closeDialog(button.dataset.close));
+  document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
+
+  applySettings();
+  if (run && !run.complete) currentEvent = run.currentEventId === 'final_shift' ? finalEvent() : byId(D.events,run.currentEventId) || pickEvent();
+  showMenu();
+})();
