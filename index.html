@@ -11,42 +11,42 @@
   <div class="grain" aria-hidden="true"></div>
   <main class="app-shell" id="gameScreen">
     <header class="topbar">
-      <div><div class="kicker">PROTOTIPO 0.3 · SUPERVIVENCIA NARRATIVA</div><h1>QUIET SIGNAL</h1></div>
+      <div><div class="kicker"><span data-i18n="ui.brand.kicker">PROTOTIPO 0.3 · SUPERVIVENCIA NARRATIVA</span></div><h1>QUIET SIGNAL</h1></div>
       <div class="top-actions">
         <button id="archiveBtn" class="ghost" data-i18n="ui.menu.archive">Archivo</button>
         <button id="settingsBtn" class="ghost" data-i18n="ui.menu.settings">Configuración</button>
-        <button id="menuBtn" class="ghost">Menú</button>
+        <button id="menuBtn" class="ghost" data-i18n="ui.menu.menu">Menú</button>
       </div>
     </header>
 
-    <section class="run-strip" aria-label="Estado de la partida">
-      <div><span>DÍA</span><strong id="dayValue">1 / 12</strong></div>
-      <div><span>HORA</span><strong id="timeValue">06:40</strong></div>
-      <div><span>ACCIONES</span><strong id="actionsValue">3 / 3</strong></div>
-      <div><span>SEÑAL 14.827</span><strong id="signalValue">0%</strong></div>
-      <div class="run-context"><span>OPERACIÓN</span><strong id="runContext">—</strong></div>
+    <section class="run-strip" aria-label="Estado de la partida" data-i18n-aria-label="ui.aria.runStatus">
+      <div><span data-i18n="ui.run.day">DÍA</span><strong id="dayValue">1 / 12</strong></div>
+      <div><span data-i18n="ui.run.time">HORA</span><strong id="timeValue">06:40</strong></div>
+      <div><span data-i18n="ui.run.actions">ACCIONES</span><strong id="actionsValue">3 / 3</strong></div>
+      <div><span data-i18n="ui.run.signal">SEÑAL 14.827</span><strong id="signalValue">0%</strong></div>
+      <div class="run-context"><span data-i18n="ui.run.operation">OPERACIÓN</span><strong id="runContext">—</strong></div>
     </section>
 
     <div class="game-layout">
       <aside class="status-column">
         <section class="panel systems-card">
-          <div class="systems-head"><div><div class="kicker">ESTACIÓN K-27</div><h2>Condición</h2></div><span class="status-pill" id="stationStatus">ESTABLE</span></div>
+          <div class="systems-head"><div><div class="kicker" data-i18n="ui.system.station">ESTACIÓN K-27</div><h2 data-i18n="ui.system.condition">Condición</h2></div><span class="status-pill" id="stationStatus" data-i18n="ui.common.stable">ESTABLE</span></div>
           <div id="stationStats" class="meter-grid"></div>
         </section>
 
         <section class="panel systems-card">
-          <div class="systems-head"><div><div class="kicker" id="operatorKicker">OPERADOR</div><h2>Estado personal</h2></div><span class="status-pill" id="operatorStatus">FUNCIONAL</span></div>
+          <div class="systems-head"><div><div class="kicker" id="operatorKicker" data-i18n="ui.common.operator">OPERADOR</div><h2 data-i18n="ui.system.personal">Estado personal</h2></div><span class="status-pill" id="operatorStatus" data-i18n="ui.common.functional">FUNCIONAL</span></div>
           <div id="operatorStats" class="meter-grid"></div>
           <div id="traitSummary" class="trait-summary"></div>
         </section>
 
         <section class="panel resource-card">
-          <div class="section-title">RECURSOS</div>
+          <div class="section-title" data-i18n="ui.section.resources">RECURSOS</div>
           <div id="resources" class="resource-grid"></div>
         </section>
 
         <section class="panel objective-card">
-          <div class="section-title">OBJETIVOS DE RUN</div>
+          <div class="section-title" data-i18n="ui.section.objectives">OBJETIVOS DE RUN</div>
           <div id="objectives" class="objective-list"></div>
         </section>
       </aside>
@@ -59,50 +59,50 @@
             <div class="station"><div class="tower"></div><div class="antenna"></div><div class="window"></div></div>
             <div class="signal-ring ring-a"></div><div class="signal-ring ring-b"></div><div class="vignette"></div>
           </div>
-          <div class="scene-caption"><span id="sceneCaption">Estación K-27 · Cordillera de Nadir</span><span id="weatherCaption">—</span></div>
+          <div class="scene-caption"><span id="sceneCaption"><span data-i18n="ui.scene.caption">Estación K-27 · Cordillera de Nadir</span></span><span id="weatherCaption">—</span></div>
         </section>
 
         <section class="panel story-card">
-          <div class="chapter-row"><div class="kicker" id="chapterLabel">DÍA 1 · 06:40</div><div class="weather" id="weatherLabel">NIEVE LEVE</div></div>
-          <div class="event-meta"><span id="eventCategory">MANTENIMIENTO</span><span id="eventRarity"></span></div>
-          <h2 id="eventTitle">Turno de guardia</h2>
+          <div class="chapter-row"><div class="kicker" id="chapterLabel" data-i18n="ui.game.dayLabel">DÍA 1 · 06:40</div><div class="weather" id="weatherLabel" data-i18n="weather.NIEVE LEVE">NIEVE LEVE</div></div>
+          <div class="event-meta"><span id="eventCategory" data-i18n="event.mantenimiento.category">MANTENIMIENTO</span><span id="eventRarity"></span></div>
+          <h2 id="eventTitle" data-i18n="ui.game.initialTitle">Turno de guardia</h2>
           <p id="eventText"></p>
           <div id="contextLine" class="context-line"></div>
           <div id="choices" class="choices"></div>
-          <button id="endDayBtn" class="primary end-day" hidden>Finalizar día</button>
+          <button id="endDayBtn" class="primary end-day" hidden data-i18n="ui.game.endDay">Finalizar día</button>
         </section>
 
         <section class="panel actions-card">
           <div class="actions-heading">
-            <div><div class="section-title">ACCIONES DIARIAS</div><p>La estación no se cuida sola. Elegí dónde gastar el turno.</p></div>
-            <strong id="actionsCounter">3 restantes</strong>
+            <div><div class="section-title" data-i18n="ui.actions.title">ACCIONES DIARIAS</div><p data-i18n="ui.actions.description">La estación no se cuida sola. Elegí dónde gastar el turno.</p></div>
+            <strong id="actionsCounter" data-i18n="ui.actions.remaining">3 restantes</strong>
           </div>
           <div id="dailyActions" class="daily-actions"></div>
         </section>
 
         <div class="lower-grid">
-          <section class="panel log-card"><div class="section-title">REGISTRO DE TURNO</div><div id="log" class="log"></div></section>
-          <section class="panel intel-card"><div class="section-title">HALLAZGOS</div><p id="intelText"></p><div class="mini-rule"></div><div id="flagsList" class="flags-list"></div></section>
+          <section class="panel log-card"><div class="section-title" data-i18n="ui.log.title">REGISTRO DE TURNO</div><div id="log" class="log"></div></section>
+          <section class="panel intel-card"><div class="section-title" data-i18n="ui.findings.title">HALLAZGOS</div><p id="intelText"></p><div class="mini-rule"></div><div id="flagsList" class="flags-list"></div></section>
         </div>
       </section>
     </div>
-    <footer><span>Quiet Signal 0.3 · completamente local</span><span>Guardado automático</span></footer>
+    <footer><span data-i18n="ui.footer.version">Quiet Signal 0.3 · completamente local</span><span data-i18n="ui.footer.autosave">Guardado automático</span></footer>
   </main>
 
   <div id="mainMenu" class="menu-screen">
     <div class="menu-visual" aria-hidden="true"><span>14.827</span><i></i></div>
     <section class="menu-card">
-      <div class="kicker">PROYECTO NADIR · ESTACIÓN K-27</div>
+      <div class="kicker"><span data-i18n="ui.brand.project">PROYECTO NADIR · ESTACIÓN K-27</span></div>
       <h2>QUIET SIGNAL</h2>
-      <p>El viento cubre las antenas. Una frecuencia espera bajo el ruido.</p>
+      <p data-i18n="ui.brand.tagline">El viento cubre las antenas. Una frecuencia espera bajo el ruido.</p>
       <nav class="menu-actions">
         <button id="continueBtn" class="primary" data-i18n="ui.menu.continue">Continuar</button>
         <button id="newGameBtn" class="menu-choice" data-i18n="ui.menu.newGame">Nueva partida</button>
         <button id="menuArchiveBtn" class="menu-choice" data-i18n="ui.menu.archive">Archivo</button>
         <button id="menuSettingsBtn" class="menu-choice" data-i18n="ui.menu.settings">Configuración</button>
       </nav>
-      <section class="profile-spotlight" aria-label="Perfil local activo">
-        <div><span class="panel-kicker">OPERADOR LOCAL</span><strong id="activeProfileName">Jugador 1</strong><small id="activeProfileMeta">Progreso guardado en este navegador</small></div>
+      <section class="profile-spotlight" aria-label="Perfil local activo" data-i18n-aria-label="ui.aria.activeProfile">
+        <div><span class="panel-kicker" data-i18n="ui.profile.kicker">OPERADOR LOCAL</span><strong id="activeProfileName">Jugador 1</strong><small id="activeProfileMeta" data-i18n="ui.profile.meta">Progreso guardado en este navegador</small></div>
         <button id="changeProfileBtn" class="ghost" data-i18n="ui.profile.change">Cambiar perfil</button>
       </section>
       <div id="metaSummary" class="meta-summary"></div>
@@ -111,56 +111,56 @@
 
   <dialog id="profileDialog">
     <section class="modal-card profile-modal">
-      <div class="modal-head"><div><div class="kicker">OPERADORES LOCALES</div><h2>Perfiles</h2></div><button type="button" class="close-btn" data-close="profileDialog">×</button></div>
-      <p class="profile-note">Cada perfil tiene su propia partida, Archivo, DATA, logros y desbloqueos. Todo permanece en este navegador.</p>
+      <div class="modal-head"><div><div class="kicker" data-i18n="ui.profile.dialogKicker">OPERADORES LOCALES</div><h2 data-i18n="ui.profile.title">Perfiles</h2></div><button type="button" class="close-btn" data-close="profileDialog">×</button></div>
+      <p class="profile-note" data-i18n="ui.profile.dialogNote">Cada perfil tiene su propia partida, Archivo, DATA, logros y desbloqueos. Todo permanece en este navegador.</p>
       <div id="profilesList" class="profiles-list"></div>
-      <div class="modal-actions"><button id="createProfileBtn" type="button" class="primary">＋ Crear perfil</button></div>
+      <div class="modal-actions"><button id="createProfileBtn" type="button" class="primary" data-i18n="ui.profile.create">＋ Crear perfil</button></div>
     </section>
   </dialog>
 
   <dialog id="newGameDialog">
     <form id="newGameForm" class="modal-card wide-modal">
-      <div class="modal-head"><div><div class="kicker">PREPARAR OPERACIÓN</div><h2>Nueva partida</h2></div><button type="button" class="close-btn" data-close="newGameDialog">×</button></div>
+      <div class="modal-head"><div><div class="kicker" data-i18n="ui.newGame.kicker">PREPARAR OPERACIÓN</div><h2 data-i18n="ui.newGame.title">Nueva partida</h2></div><button type="button" class="close-btn" data-close="newGameDialog">×</button></div>
       <div class="setup-grid">
-        <fieldset><legend>1 · Escenario</legend><div id="scenarioOptions" class="select-cards"></div></fieldset>
-        <fieldset><legend>2 · Operador</legend><div id="operatorOptions" class="select-cards"></div></fieldset>
-        <fieldset><legend>3 · Dificultad</legend><div id="difficultyOptions" class="select-cards compact-select"></div></fieldset>
-        <fieldset><legend>4 · Mutadores</legend><div id="mutatorOptions" class="mutator-list"></div></fieldset>
+        <fieldset><legend data-i18n="ui.newGame.scenario">1 · Escenario</legend><div id="scenarioOptions" class="select-cards"></div></fieldset>
+        <fieldset><legend data-i18n="ui.newGame.operator">2 · Operador</legend><div id="operatorOptions" class="select-cards"></div></fieldset>
+        <fieldset><legend data-i18n="ui.newGame.difficulty">3 · Dificultad</legend><div id="difficultyOptions" class="select-cards compact-select"></div></fieldset>
+        <fieldset><legend data-i18n="ui.newGame.mutators">4 · Mutadores</legend><div id="mutatorOptions" class="mutator-list"></div></fieldset>
       </div>
       <div id="runPreview" class="run-preview"></div>
-      <div class="modal-actions"><button type="button" class="ghost" data-close="newGameDialog">Cancelar</button><button type="submit" class="primary">Comenzar operación</button></div>
+      <div class="modal-actions"><button type="button" class="ghost" data-close="newGameDialog" data-i18n="ui.newGame.cancel">Cancelar</button><button type="submit" class="primary" data-i18n="ui.newGame.start">Comenzar operación</button></div>
     </form>
   </dialog>
 
   <dialog id="archiveDialog">
     <section class="modal-card archive-modal">
-      <div class="modal-head"><div><div class="kicker">META-PROGRESIÓN</div><h2>Archivo K-27</h2></div><button type="button" class="close-btn" data-close="archiveDialog">×</button></div>
+      <div class="modal-head"><div><div class="kicker" data-i18n="ui.archive.kicker">META-PROGRESIÓN</div><h2 data-i18n="ui.archive.title">Archivo K-27</h2></div><button type="button" class="close-btn" data-close="archiveDialog">×</button></div>
       <div id="archiveSummary" class="archive-summary"></div>
       <div class="archive-grid">
-        <section><h3>Desbloqueos</h3><div id="unlocksList" class="unlock-list"></div></section>
-        <section><h3>Finales</h3><div id="endingsArchive" class="collection-list"></div></section>
-        <section><h3>Logros</h3><div id="achievementsArchive" class="collection-list"></div></section>
-        <section><h3>Señales y lore</h3><div id="loreArchive" class="collection-list"></div></section>
+        <section><h3 data-i18n="ui.archive.unlocks">Desbloqueos</h3><div id="unlocksList" class="unlock-list"></div></section>
+        <section><h3 data-i18n="ui.archive.endings">Finales</h3><div id="endingsArchive" class="collection-list"></div></section>
+        <section><h3 data-i18n="ui.archive.achievements">Logros</h3><div id="achievementsArchive" class="collection-list"></div></section>
+        <section><h3 data-i18n="ui.archive.lore">Señales y lore</h3><div id="loreArchive" class="collection-list"></div></section>
       </div>
-      <section class="history-section"><h3>Últimas operaciones</h3><div id="runHistory" class="history-list"></div></section>
+      <section class="history-section"><h3 data-i18n="ui.archive.history">Últimas operaciones</h3><div id="runHistory" class="history-list"></div></section>
     </section>
   </dialog>
 
   <dialog id="settingsDialog">
     <section class="modal-card settings-modal">
-      <div class="modal-head"><div><div class="kicker">PREFERENCIAS LOCALES</div><h2>Configuración</h2></div><button type="button" class="close-btn" data-close="settingsDialog">×</button></div>
-      <label><span data-i18n="ui.settings.textScale">Escala de texto</span><select id="textScale"><option value="100">Normal</option><option value="112">Grande</option><option value="125">Muy grande</option></select></label>
-      <label><span data-i18n="ui.settings.language">Idioma</span><select id="languageSelect"><option value="es">Español</option><option value="en">English</option><option value="ko">한국어</option></select></label>
+      <div class="modal-head"><div><div class="kicker" data-i18n="ui.settings.kicker">PREFERENCIAS LOCALES</div><h2 data-i18n="ui.menu.settings">Configuración</h2></div><button type="button" class="close-btn" data-close="settingsDialog">×</button></div>
+      <label><span data-i18n="ui.settings.textScale">Escala de texto</span><select id="textScale"><option value="100" data-i18n="ui.settings.normal">Normal</option><option value="112" data-i18n="ui.settings.large">Grande</option><option value="125" data-i18n="ui.settings.veryLarge">Muy grande</option></select></label>
+      <label><span data-i18n="ui.settings.language">Idioma</span><select id="languageSelect"><option value="es" data-i18n="ui.settings.language.es">Español</option><option value="en" data-i18n="ui.settings.language.en">English</option><option value="ko" data-i18n="ui.settings.language.ko">한국어</option></select></label>
       <label class="check-row"><input id="reduceMotion" type="checkbox" /> <span data-i18n="ui.settings.reduceMotion">Reducir animaciones</span></label>
-      <div class="danger-zone"><h3>Datos guardados</h3><button id="deleteRunBtn" class="danger-button">Borrar run actual</button><button id="deleteAllBtn" class="danger-button strong">Borrar todo el progreso</button><p>La segunda opción elimina también DATA, Archivo, logros y desbloqueos.</p></div>
+      <div class="danger-zone"><h3 data-i18n="ui.settings.savedData">Datos guardados</h3><button id="deleteRunBtn" class="danger-button" data-i18n="ui.settings.deleteRun">Borrar run actual</button><button id="deleteAllBtn" class="danger-button strong" data-i18n="ui.settings.deleteAll">Borrar todo el progreso</button><p data-i18n="ui.settings.deleteAllNote">La segunda opción elimina también DATA, Archivo, logros y desbloqueos.</p></div>
     </section>
   </dialog>
 
   <dialog id="endingDialog">
     <section class="modal-card ending-card">
-      <div class="kicker" id="endingCategory">FINAL DE OPERACIÓN</div><h2 id="endingTitle"></h2><p id="endingText"></p>
+      <div class="kicker" id="endingCategory" data-i18n="ui.ending.category">FINAL DE OPERACIÓN</div><h2 id="endingTitle"></h2><p id="endingText"></p>
       <div id="endingStats" class="ending-stats"></div><div id="rewardSummary" class="reward-summary"></div>
-      <div class="modal-actions"><button id="endingArchiveBtn" class="ghost">Ver archivo</button><button id="restartBtn" class="primary">Nueva partida</button></div>
+      <div class="modal-actions"><button id="endingArchiveBtn" class="ghost" data-i18n="ui.ending.archive">Ver archivo</button><button id="restartBtn" class="primary" data-i18n="ui.ending.restart">Nueva partida</button></div>
     </section>
   </dialog>
 

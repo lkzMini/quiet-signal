@@ -36,14 +36,16 @@
 
   function profileKey(kind, profileId = activeProfile?.id) { return `quiet-signal:${profileId}:${kind}`; }
 
-  function createProfile(name = 'Jugador 1') {
+  function createProfile(name = null) {
+    const generated = !name;
+    name = name || I18N?.t?.('profile.defaultName') || (navigator.language?.toLowerCase().startsWith('ko') ? '플레이어 1' : navigator.language?.toLowerCase().startsWith('en') ? 'Player 1' : 'Jugador 1');
     const now = new Date().toISOString();
-    return { id: `p-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, createdAt: now, lastPlayedAt: null };
+    return { id: `p-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, defaultGenerated: generated, createdAt: now, lastPlayedAt: null };
   }
 
   function initializeProfiles() {
     const existing = loadJson(PROFILES_KEY, null);
-    if (existing?.profiles?.length) return existing;
+    if (existing?.profiles?.length) { const profile=existing.profiles.find(item=>item.defaultGenerated || item.name==='Jugador 1'); if(profile && (profile.defaultGenerated || profile.name==='Jugador 1')) { profile.defaultGenerated=true; profile.name=I18N.t('profile.defaultName'); } return existing; }
     const profile = createProfile();
     const store = { version: 1, selectedProfileId: profile.id, profiles: [profile] };
     const legacyRun = loadJson(RUN_KEY, null) || migrateLegacyRun(loadJson(LEGACY_RUN_KEY, null));
@@ -94,7 +96,11 @@
   function uniquePush(list, value) { if (!list.includes(value)) list.push(value); }
   function randomItem(list) { return list[Math.floor(Math.random() * list.length)]; }
   function esc(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function dataText(item, field) { const key = item && item[`${field}Key`]; return key && I18N.has(key) ? I18N.t(key) : (item?.[field] ?? ''); }
+  function dataText(item, field) { const key = item && item[`${field}Key`]; if (key) return I18N.t(key); return I18N.getLocale()==='es' ? (item?.[field] ?? '') : ''; }
+  function profileDisplayName(profile) { return profile?.defaultGenerated ? I18N.t('profile.defaultName') : profile?.name; }
+  function weatherText(value) { return I18N.t(`weather.${value}`, {}) === `weather.${value}` ? value : I18N.t(`weather.${value}`); }
+  function categoryText(value) { const key=`event.${value}.category`; return I18N.has(key) ? I18N.t(key) : (I18N.getLocale()==='es' ? value : I18N.t('ui.common.eventCategory')); }
+  function runtimeText(text) { return I18N.getLocale()==='es' ? text : (I18N.getLocale()==='ko' ? '행동이 기록되었습니다.' : 'Action recorded.'); }
 
   function scenarioUnlocked(scenario) { return !scenario.locked || meta.scenariosUnlocked.includes(scenario.id) || meta.unlocksPurchased.includes(scenario.unlockId); }
   function operatorUnlocked(operator) { return !operator.locked || meta.operatorsUnlocked.includes(operator.id) || meta.unlocksPurchased.includes(operator.unlockId); }
@@ -130,13 +136,13 @@
       station: { ...scenario.start.station }, operator: { ...operator.start }, resources,
       signalKnowledge: 0, flags: Object.fromEntries((scenario.startFlags || []).map(flag => [flag, true])),
       chainStages: {}, usedEvents: [], eventCooldowns: {}, currentEventId: null, eventResolved: false,
-      history: [`Día 1: ${operator.name} asumió el turno en K-27.`], counters: {}, loreFound: [], newEvents: [],
+      history: [{key:'ui.log.started', vars:{day:1, operator:dataText(operator,'name')}}], counters: {}, loreFound: [], newEvents: [],
       objectives: selectObjectives(), objectiveResults: [], ending: null, endingCategory: null
     };
   }
 
   function startRun(config) {
-    if (run && !run.complete && !confirm('Hay una operación en curso. ¿Reemplazarla por una nueva?')) return false;
+    if (run && !run.complete && !confirm(I18N.t('ui.common.replaceRun'))) return false;
     run = createRun(config);
     currentEvent = pickEvent();
     run.currentEventId = currentEvent.id;
@@ -198,13 +204,13 @@
 
   function finalEvent() {
     const choices = [
-      { title:'Esperar al relevo', desc:'Cerrar el turno y entregar la estación.', hint:'FINAL · SUPERVIVENCIA', endingResolver: () => Object.values(run.station).every(v => v >= 60) ? 'station_kept' : 'evacuation' },
-      { title:'Responder a 14.827', desc:'Transmitir una pregunta y aceptar la respuesta.', hint:'Requiere señal 55% y comunicaciones 35', ending:'contact', requirements:{signalKnowledge:55,station:{comms:35}} },
-      { title:'Descender bajo el hielo', desc:'Abrir la puerta circular antes de que llegue el relevo.', hint:'Requiere cadena Golpes bajo el hielo', ending:'under_ice', requirements:{flags:['under_ice_ready']} },
-      { title:'Liberar el Archivo', desc:'Enviar registros por todos los canales disponibles.', hint:'Requiere señal 40% y comunicaciones 50', ending:'broadcast', requirements:{signalKnowledge:40,station:{comms:50}} },
-      { title:'Autorizar la respuesta futura', desc:'Dejar que el mensaje complete su recorrido.', hint:'Requiere cadena Eco adelantado', ending:'something_answered', requirements:{flags:['something_answered']} }
+      { titleKey:'ui.game.finalWait', descKey:'ui.game.finalWaitDesc', hintKey:'ui.game.finalWaitHint', endingResolver: () => Object.values(run.station).every(v => v >= 60) ? 'station_kept' : 'evacuation' },
+      { titleKey:'ui.game.finalContact', descKey:'ui.game.finalContactDesc', hintKey:'ui.game.finalContactHint', ending:'contact', requirements:{signalKnowledge:55,station:{comms:35}} },
+      { titleKey:'ui.game.finalIce', descKey:'ui.game.finalIceDesc', hintKey:'ui.game.finalIceHint', ending:'under_ice', requirements:{flags:['under_ice_ready']} },
+      { titleKey:'ui.game.finalArchive', descKey:'ui.game.finalArchiveDesc', hintKey:'ui.game.finalArchiveHint', ending:'broadcast', requirements:{signalKnowledge:40,station:{comms:50}} },
+      { titleKey:'ui.game.finalFuture', descKey:'ui.game.finalFutureDesc', hintKey:'ui.game.finalFutureHint', ending:'something_answered', requirements:{flags:['something_answered']} }
     ];
-    return { id:'final_shift', category:'misterio', title:'El relevo cruza el último paso', text:'Las luces del convoy aparecen en el valle. Antes de cerrar el turno, 14.827 emite una secuencia completa. La estación espera una última decisión.', weather:'AMANECER · VIENTO CALMO', choices };
+    return { id:'final_shift', category:'misterio', titleKey:'ui.game.finalTitle', textKey:'ui.game.finalText', weather:'AMANECER · VIENTO CALMO', choices };
   }
 
   function applyDelta(target, changes, multiplier = 1) {
@@ -257,7 +263,7 @@
     discoverLore(choice.lore);
     run.usedEvents.push(currentEvent.id);
     run.eventCooldowns[currentEvent.id] = run.day;
-    run.history.push(`Día ${run.day}: ${choice.title}.`);
+    run.history.push({key:'ui.log.choice', vars:{day:run.day, choice:dataText(choice,'title')}});
     run.eventResolved = true;
     normalizeRun();
     const failure = checkFailure();
@@ -283,7 +289,7 @@
     if (run.actionsRemaining <= 0 || (action.available && !action.available(run))) return;
     const message = action.perform(run);
     run.actionsRemaining--;
-    run.history.push(`Día ${run.day}: ${message}`);
+    run.history.push({key:'ui.log.action', vars:{day:run.day, action:runtimeText(message)}});
     normalizeRun();
     const failure = checkFailure();
     if (failure) finishRun(failure); else { saveRun(); render(); }
@@ -352,7 +358,7 @@
     normalizeRun();
     run.complete = true;
     run.ending = ending.id;
-    run.endingCategory = ending.category;
+    run.endingCategory = categoryText(ending.category);
     run.objectiveResults = calculateObjectives();
     const newEnding = !meta.endingsFound.includes(ending.id);
     uniquePush(meta.endingsFound, ending.id);
@@ -364,16 +370,16 @@
     const baseData = Math.min(run.day, run.maxDays) * 2 + run.objectiveResults.filter(Boolean).length * 20 + run.newEvents.length + run.loreFound.length * 5 + (newEnding ? 30 : 0);
     const dataEarned = Math.round(baseData * difficulty.reward * (1 + mutatorBonus));
     meta.data += dataEarned;
-    const history = { operator:currentOperator().name, scenario:currentScenario().name, days:Math.min(run.day,run.maxDays), ending:ending.title, endingId:ending.id, objectives:run.objectiveResults.filter(Boolean).length, difficulty:difficulty.name, data:dataEarned, date:new Date().toISOString() };
+    const history = { operator:currentOperator().name, operatorId:currentOperator().id, scenario:currentScenario().name, scenarioId:currentScenario().id, days:Math.min(run.day,run.maxDays), ending:dataText(ending,'title'), endingId:ending.id, objectives:run.objectiveResults.filter(Boolean).length, difficulty:difficulty.name, difficultyId:difficulty.id, data:dataEarned, date:new Date().toISOString() };
     meta.runHistory.unshift(history);
     meta.runHistory = meta.runHistory.slice(0,20);
     for (const achievement of D.achievements) if (!meta.achievements.includes(achievement.id) && achievement.test(run,meta)) meta.achievements.push(achievement.id);
     saveRun(); saveMeta();
-    $('endingCategory').textContent = dataText(ending,'category') || ending.category;
+    $('endingCategory').textContent = dataText(ending,'category') || categoryText(ending.category);
     $('endingTitle').textContent = dataText(ending,'title');
     $('endingText').textContent = dataText(ending,'text');
-    $('endingStats').innerHTML = `<span>Día ${Math.min(run.day,run.maxDays)} / ${run.maxDays}</span><span>Señal ${Math.round(run.signalKnowledge)}%</span><span>Salud ${Math.round(run.operator.health)}</span><span>Estación ${Math.round(average(Object.values(run.station)))}</span><span>Objetivos ${run.objectiveResults.filter(Boolean).length}/3</span><span>${difficulty.name}</span>`;
-    $('rewardSummary').innerHTML = `<strong>+${dataEarned} DATA</strong><span>${newEnding ? 'Nuevo final archivado.' : 'Final ya conocido.'}</span>`;
+    $('endingStats').innerHTML = `<span>${I18N.t('ui.common.day')} ${Math.min(run.day,run.maxDays)} / ${run.maxDays}</span><span>${I18N.t('ui.common.signal')} ${Math.round(run.signalKnowledge)}%</span><span>${I18N.t('ui.common.health')} ${Math.round(run.operator.health)}</span><span>${I18N.t('ui.common.station')} ${Math.round(average(Object.values(run.station)))}</span><span>${I18N.t('ui.common.objectives')} ${run.objectiveResults.filter(Boolean).length}/3</span><span>${dataText(difficulty,'name')}</span>`;
+    $('rewardSummary').innerHTML = `<strong>+${dataEarned} DATA</strong><span>${I18N.t(newEnding ? 'ui.ending.new' : 'ui.ending.known')}</span>`;
     $('endingDialog').showModal();
   }
 
@@ -429,12 +435,12 @@
   }
 
   function renderActions() {
-    $('actionsCounter').textContent = `${run.actionsRemaining} ${run.actionsRemaining === 1 ? 'restante' : 'restantes'}`;
+    $('actionsCounter').textContent = I18N.plural(run.actionsRemaining,{one:'ui.actions.remainingOne',other:'ui.actions.remaining'});
     $('dailyActions').replaceChildren(...ACTIONS.map(action => {
       const button = document.createElement('button');
       const available = run.actionsRemaining > 0 && (!action.available || action.available(run));
       button.className = 'daily-action'; button.disabled = !available;
-      button.innerHTML = `<strong>${esc(action.name)}</strong><span>${esc(action.hint)}</span>`;
+      button.innerHTML = `<strong>${esc(I18N.t(`action.${action.id}.name`))}</strong><span>${esc(I18N.t(`action.${action.id}.hint`))}</span>`;
       button.onclick = () => performAction(action);
       return button;
     }));
@@ -442,24 +448,24 @@
 
   function contextHint() {
     const warnings = [];
-    if(run.station.power<35)warnings.push('potencia baja'); if(run.station.heat<35)warnings.push('calefacción inestable');
-    if(run.resources.fuel<7)warnings.push('combustible escaso'); if(run.resources.waterReserve<4)warnings.push('reserva de agua escasa');
-    if(run.operator.thirst>65)warnings.push('deshidratación'); if(run.operator.hunger>65)warnings.push('hambre severa');
-    if(run.operator.fatigue>70)warnings.push('fatiga extrema'); if(run.operator.stress>70)warnings.push('estrés extremo');
-    return warnings.length ? `Advertencia: ${warnings.join(' · ')}` : 'Sin alertas críticas activas.';
+    if(run.station.power<35)warnings.push(I18N.t('ui.warning.lowPower')); if(run.station.heat<35)warnings.push(I18N.t('ui.warning.unstableHeat'));
+    if(run.resources.fuel<7)warnings.push(I18N.t('ui.warning.lowFuel')); if(run.resources.waterReserve<4)warnings.push(I18N.t('ui.warning.lowWater'));
+    if(run.operator.thirst>65)warnings.push(I18N.t('ui.warning.dehydration')); if(run.operator.hunger>65)warnings.push(I18N.t('ui.warning.severeHunger'));
+    if(run.operator.fatigue>70)warnings.push(I18N.t('ui.warning.extremeFatigue')); if(run.operator.stress>70)warnings.push(I18N.t('ui.warning.extremeStress'));
+    return warnings.length ? I18N.t('ui.context.warning',{items:warnings.join(' · ')}) : I18N.t('ui.context.clear');
   }
 
   function renderEvent() {
-    $('chapterLabel').textContent = run.day > run.maxDays ? 'CIERRE DE OPERACIÓN' : `DÍA ${run.day} · ${run.time}`;
-    $('weatherLabel').textContent = currentEvent.weather || currentScenario().weather;
-    $('weatherCaption').textContent = currentEvent.weather || currentScenario().weather;
-    $('eventCategory').textContent = (currentEvent.category || 'evento').toUpperCase();
-    $('eventRarity').textContent = currentEvent.chain ? `CADENA · ETAPA ${currentEvent.chain.stage}` : '';
+    $('chapterLabel').textContent = run.day > run.maxDays ? I18N.t('ui.game.close') : I18N.t('ui.game.dayLabel',{day:run.day,time:run.time});
+    $('weatherLabel').textContent = weatherText(currentEvent.weather || currentScenario().weather);
+    $('weatherCaption').textContent = weatherText(currentEvent.weather || currentScenario().weather);
+    $('eventCategory').textContent = categoryText(currentEvent.category || 'evento').toUpperCase();
+    $('eventRarity').textContent = currentEvent.chain ? I18N.t('ui.game.chain',{stage:currentEvent.chain.stage}) : '';
     $('eventTitle').textContent = dataText(currentEvent,'title');
     $('eventText').textContent = dataText(currentEvent,'text');
     $('contextLine').textContent = contextHint();
     if (run.eventResolved) {
-      $('choices').innerHTML = '<div class="resolved-event">La decisión quedó registrada. Podés usar las acciones restantes o cerrar el día.</div>';
+      $('choices').innerHTML = `<div class="resolved-event">${I18N.t('ui.game.resolved')}</div>`;
       $('endDayBtn').hidden = false;
     } else {
       $('choices').replaceChildren(...currentEvent.choices.map(choice => {
@@ -476,14 +482,14 @@
 
   function renderLog() {
     $('log').replaceChildren(...run.history.slice().reverse().map(text => {
-      const entry = document.createElement('div'); entry.className = 'log-entry'; entry.textContent = text; return entry;
+      const entry = document.createElement('div'); entry.className = 'log-entry'; entry.textContent = typeof text === 'string' ? (I18N.getLocale()==='es' ? text : I18N.t('ui.log.legacy')) : I18N.t(text.key,text.vars); return entry;
     }));
   }
 
   function renderIntel() {
-    $('intelText').textContent = run.signalKnowledge < 20 ? '14.827 parece ruido estructurado. Todavía faltan patrones.' : run.signalKnowledge < 50 ? 'La señal contiene tiempos, coordenadas y repeticiones que no encajan con una transmisión normal.' : run.signalKnowledge < 80 ? 'Los fragmentos sugieren que 14.827 no describe una frecuencia, sino una relación entre registros.' : 'La señal reconoce decisiones tomadas en otras operaciones. Ninguna run revela el patrón completo.';
+    $('intelText').textContent = run.signalKnowledge < 20 ? I18N.t('ui.game.intel1') : run.signalKnowledge < 50 ? I18N.t('ui.game.intel2') : run.signalKnowledge < 80 ? I18N.t('ui.game.intel3') : I18N.t('ui.game.intel4');
     const flags = Object.keys(run.flags).filter(key => run.flags[key]);
-    $('flagsList').replaceChildren(...(flags.length ? flags.map(flag => { const span=document.createElement('span');span.className='flag';span.textContent=flag.replaceAll('_',' ');return span; }) : [Object.assign(document.createElement('span'),{className:'flag',textContent:'Sin hallazgos'})]));
+    $('flagsList').replaceChildren(...(flags.length ? flags.map(flag => { const span=document.createElement('span');span.className='flag';span.textContent=flag.replaceAll('_',' ');return span; }) : [Object.assign(document.createElement('span'),{className:'flag',textContent:I18N.t('ui.common.noFindings')})]));
   }
 
   function render() {
@@ -516,7 +522,7 @@
   function updateLocalizedUi() {
     I18N.applyStatic(document);
     const text = {
-      archiveBtn:'ui.menu.archive', settingsBtn:'ui.menu.settings', menuBtn:'ui.menu.settings',
+      archiveBtn:'ui.menu.archive', settingsBtn:'ui.menu.settings', menuBtn:'ui.menu.menu',
       continueBtn:'ui.menu.continue', newGameBtn:'ui.menu.newGame', menuArchiveBtn:'ui.menu.archive', menuSettingsBtn:'ui.menu.settings',
       changeProfileBtn:'ui.profile.change', createProfileBtn:'ui.profile.create'
     };
@@ -525,6 +531,7 @@
     const labels={stationStatus:'ui.common.stable',operatorStatus:'ui.common.functional'};
     Object.entries(labels).forEach(([id,key])=>{const node=$(id);if(node)node.textContent=I18N.t(key);});
     const scale=$('textScale'); if(scale){ scale.options[0].text=I18N.t('ui.settings.normal'); scale.options[1].text=I18N.t('ui.settings.large'); scale.options[2].text=I18N.t('ui.settings.veryLarge'); }
+    if (!run) { $('chapterLabel').textContent=I18N.t('ui.game.dayLabel',{day:1,time:'06:40'}); $('actionsCounter').textContent=I18N.plural(3,{one:'ui.actions.remainingOne',other:'ui.actions.remaining'}); }
     if (run && !run.complete) render(); else showMenu();
   }
 
@@ -538,17 +545,17 @@
       const row = document.createElement('div');
       row.className = `profile-row ${profile.id === activeProfile.id ? 'active' : ''}`;
       const info = document.createElement('div');
-      info.innerHTML = `<strong>${esc(profile.name)}</strong><small>${formatProfileDate(profile.lastPlayedAt)}</small>`;
+      info.innerHTML = `<strong>${esc(profileDisplayName(profile))}</strong><small>${formatProfileDate(profile.lastPlayedAt)}</small>`;
       const select = document.createElement('button');
       select.className = 'profile-select'; select.type = 'button';
-      select.textContent = profile.id === activeProfile.id ? 'Activo' : 'Seleccionar';
+      select.textContent = profile.id === activeProfile.id ? I18N.t('ui.profile.activeButton') : I18N.t('ui.profile.select');
       select.disabled = profile.id === activeProfile.id;
       select.onclick = () => switchProfile(profile.id);
       const rename = document.createElement('button');
-      rename.className = 'profile-action'; rename.type = 'button'; rename.textContent = 'Renombrar';
+      rename.className = 'profile-action'; rename.type = 'button'; rename.textContent = I18N.t('ui.profile.rename');
       rename.onclick = () => renameProfile(profile.id);
       const remove = document.createElement('button');
-      remove.className = 'profile-action profile-delete'; remove.type = 'button'; remove.textContent = 'Eliminar';
+      remove.className = 'profile-action profile-delete'; remove.type = 'button'; remove.textContent = I18N.t('ui.profile.delete');
       remove.disabled = profileStore.profiles.length === 1;
       remove.onclick = () => deleteProfile(profile.id);
       row.append(info, select, rename, remove);
@@ -570,15 +577,15 @@
   }
 
   function profileNameFromPrompt(current = '') {
-    const raw = prompt(current ? 'Nuevo nombre del perfil (1–24 caracteres):' : 'Nombre del nuevo perfil (1–24 caracteres):', current);
+    const raw = prompt(I18N.t(current ? 'ui.common.renameProfile' : 'ui.common.profileName'), current);
     if (raw === null) return null;
     const value = raw.trim();
-    if (!value || value.length > 24) { if (value) alert('El nombre debe tener entre 1 y 24 caracteres.'); return null; }
+    if (!value || value.length > 24) { if (value) alert(I18N.t('ui.common.invalidProfile')); return null; }
     return value;
   }
 
   function createLocalProfile() {
-    if (profileStore.profiles.length >= 10) { alert('Alcanzaste el máximo de 10 perfiles locales.'); return; }
+    if (profileStore.profiles.length >= 10) { alert(I18N.t('ui.common.maxProfiles')); return; }
     const name = profileNameFromPrompt();
     if (!name) return;
     const profile = createProfile(name);
@@ -599,9 +606,9 @@
   }
 
   function deleteProfile(profileId) {
-    if (profileStore.profiles.length === 1) { alert('No podés eliminar el último perfil.'); return; }
+    if (profileStore.profiles.length === 1) { alert(I18N.t('ui.common.lastProfile')); return; }
     const profile = profileStore.profiles.find(item => item.id === profileId);
-    if (!profile || !confirm(`Eliminar “${profile.name}” borrará permanentemente su partida, DATA, Archivo y logros. ¿Continuar?`)) return;
+    if (!profile || !confirm(I18N.t('ui.common.deleteProfile',{name:profile.name}))) return;
     localStorage.removeItem(profileKey('run', profileId));
     localStorage.removeItem(profileKey('meta', profileId));
     profileStore.profiles = profileStore.profiles.filter(item => item.id !== profileId);
@@ -619,10 +626,10 @@
     $('mainMenu').classList.remove('hidden');
     const active = run && !run.complete;
     $('continueBtn').disabled = !active;
-    $('continueBtn').textContent = active ? `Continuar · Día ${run.day}` : 'Continuar';
-    $('metaSummary').innerHTML = `<span>${meta.data} DATA</span><span>${meta.runsCompleted} runs</span><span>${meta.endingsFound.length}/${D.endings.length} finales</span>`;
-    $('activeProfileName').textContent = activeProfile.name;
-    $('activeProfileMeta').textContent = `${formatProfileDate(activeProfile.lastPlayedAt)} · ${profileStore.profiles.length} perfil${profileStore.profiles.length === 1 ? '' : 'es'}`;
+    $('continueBtn').textContent = active ? I18N.t('ui.menu.continueDay',{day:run.day}) : I18N.t('ui.menu.continue');
+    $('metaSummary').innerHTML = `<span>${meta.data} DATA</span><span>${meta.runsCompleted} ${I18N.getLocale()==='ko'?'작전':I18N.getLocale()==='en'?'runs':'runs'}</span><span>${meta.endingsFound.length}/${D.endings.length} ${I18N.getLocale()==='ko'?'결말':I18N.getLocale()==='en'?'endings':'finales'}</span>`;
+    $('activeProfileName').textContent = profileDisplayName(activeProfile);
+    $('activeProfileMeta').textContent = `${formatProfileDate(activeProfile.lastPlayedAt)} · ${profileStore.profiles.length} ${I18N.getLocale()==='ko'?'프로필':I18N.getLocale()==='en'?'profile':'perfil'}${profileStore.profiles.length === 1 ? '' : 's'}`;
   }
   function hideMenu() { $('mainMenu').classList.add('hidden'); }
 
@@ -661,11 +668,18 @@
       button.onclick = () => purchaseUnlock(unlock);
       return button;
     }));
-    $('endingsArchive').innerHTML = D.endings.map(ending => meta.endingsFound.includes(ending.id) ? `<div class="known"><strong>${esc(ending.title)}</strong><span>${ending.category}</span></div>` : '<div><strong>???</strong><span>Final desconocido</span></div>').join('');
-    $('achievementsArchive').innerHTML = D.achievements.map(a => meta.achievements.includes(a.id) ? `<div class="known"><strong>${esc(a.name)}</strong><span>${esc(a.description)}</span></div>` : '<div><strong>???</strong><span>Logro desconocido</span></div>').join('');
+    $('endingsArchive').innerHTML = D.endings.map(ending => meta.endingsFound.includes(ending.id) ? `<div class="known"><strong>${esc(dataText(ending,'title'))}</strong><span>${categoryText(ending.category)}</span></div>` : `<div><strong>???</strong><span>${I18N.t('ui.common.unknownEnding')}</span></div>`).join('');
+    $('achievementsArchive').innerHTML = D.achievements.map(a => meta.achievements.includes(a.id) ? `<div class="known"><strong>${esc(dataText(a,'name'))}</strong><span>${esc(dataText(a,'description'))}</span></div>` : `<div><strong>???</strong><span>${I18N.t('ui.common.unknownAchievement')}</span></div>`).join('');
     const loreIds = [...new Set(D.events.map(event => event.choices.map(choice => choice.lore)).flat().filter(Boolean))];
-    $('loreArchive').innerHTML = loreIds.map(id => meta.loreDiscovered.includes(id) ? `<div class="known"><strong>${esc(id.replaceAll('_',' '))}</strong><span>Fragmento recuperado</span></div>` : '<div><strong>???</strong><span>Fragmento no encontrado</span></div>').join('');
-    $('runHistory').innerHTML = meta.runHistory.length ? meta.runHistory.map(item => `<div><strong>${esc(item.ending)}</strong><span>${esc(item.operator)} · ${esc(item.scenario)}</span><span>${item.difficulty} · ${item.days} días · ${item.objectives}/3 objetivos</span><em>+${item.data} DATA</em></div>`).join('') : '<p class="empty-copy">Todavía no hay operaciones archivadas.</p>';
+    $('loreArchive').innerHTML = loreIds.map(id => meta.loreDiscovered.includes(id) ? `<div class="known"><strong>${esc(id.replaceAll('_',' '))}</strong><span>${I18N.t('ui.common.recoveredFragment')}</span></div>` : `<div><strong>???</strong><span>${I18N.t('ui.common.unknownFragment')}</span></div>`).join('');
+    const historyLabel = item => {
+      const ending = (item.endingId && byId(D.endings,item.endingId)) || D.endings.find(x=>x.title===item.ending);
+      const operator = (item.operatorId && byId(D.operators,item.operatorId)) || D.operators.find(x=>x.name===item.operator);
+      const scenario = (item.scenarioId && byId(D.scenarios,item.scenarioId)) || D.scenarios.find(x=>x.name===item.scenario);
+      const difficulty = (item.difficultyId && byId(D.difficulties,item.difficultyId)) || D.difficulties.find(x=>x.name===item.difficulty);
+      return { ending: ending ? dataText(ending,'title') : item.ending, operator: operator ? dataText(operator,'name') : item.operator, scenario: scenario ? dataText(scenario,'name') : item.scenario, difficulty: difficulty ? dataText(difficulty,'name') : item.difficulty };
+    };
+    $('runHistory').innerHTML = meta.runHistory.length ? meta.runHistory.map(item => { const label=historyLabel(item); return `<div><strong>${esc(label.ending)}</strong><span>${esc(label.operator)} · ${esc(label.scenario)}</span><span>${esc(label.difficulty)} · ${item.days} ${I18N.t('ui.common.days')} · ${item.objectives}/3 ${I18N.t('ui.common.objectives').toLowerCase()}</span><em>+${item.data} DATA</em></div>`; }).join('') : `<p class="empty-copy">${I18N.t('ui.common.noRuns')}</p>`;
     $('archiveDialog').showModal();
   }
 
@@ -708,8 +722,8 @@
   $('textScale').onchange = event => { settings.textScale=Number(event.target.value);saveSettings();applySettings(); };
   $('languageSelect').onchange = event => { I18N.setLocale(event.target.value); settings.language=I18N.getLocale(); saveSettings(); updateLocalizedUi(); };
   $('reduceMotion').onchange = event => { settings.reduceMotion=event.target.checked;saveSettings();applySettings(); };
-  $('deleteRunBtn').onclick = () => { if(!run||run.complete){alert('No hay una run activa.');return;}if(confirm('¿Borrar únicamente la run actual? El Archivo y la DATA se conservarán.')){localStorage.removeItem(profileRunKey);run=null;closeDialog('settingsDialog');showMenu();} };
-  $('deleteAllBtn').onclick = () => { const answer=prompt('Esta acción elimina el progreso de este perfil. Escribí BORRAR TODO para confirmar.');if(answer==='BORRAR TODO'){localStorage.removeItem(profileRunKey);localStorage.removeItem(profileMetaKey);run=null;meta=createMeta();saveMeta();closeDialog('settingsDialog');showMenu();} };
+  $('deleteRunBtn').onclick = () => { if(!run||run.complete){alert(I18N.t('ui.common.noActiveRun'));return;}if(confirm(I18N.t('ui.common.deleteRunConfirm'))){localStorage.removeItem(profileRunKey);run=null;closeDialog('settingsDialog');showMenu();} };
+  $('deleteAllBtn').onclick = () => { const answer=prompt(I18N.t('ui.common.deleteAllPrompt'));if(answer=== (I18N.getLocale()==='ko'?'DELETE ALL':I18N.getLocale()==='en'?'DELETE ALL':'BORRAR TODO')){localStorage.removeItem(profileRunKey);localStorage.removeItem(profileMetaKey);run=null;meta=createMeta();saveMeta();closeDialog('settingsDialog');showMenu();} };
 
   document.querySelectorAll('[data-close]').forEach(button => button.onclick = () => closeDialog(button.dataset.close));
   document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
