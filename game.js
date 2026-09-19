@@ -18,7 +18,10 @@
     const effects=JSON.parse(JSON.stringify(choice.effects||{})),op=currentOperator(),scenario=currentScenario();
     if(effects.operator?.stress>0) effects.operator.stress *= (op.effects.stressGain||1)*(scenario.modifiers.stressGain||1)*(run.mutators.includes('paranoia')?1.3:1)*(currentEvent.category==='señal'?(op.effects.signalStress||1):1);
     if(effects.signalKnowledge){effects.signalKnowledge *= (op.effects.signalGain||1)*(scenario.modifiers.signalGain||1);if(run.mutators.includes('interference'))effects.signalKnowledge*=.75;}
-    const rows=renderPreview(effects,run); return rows || esc(dataText(choice,'hint') || I18N.t('ui.preview.uncertain'));
+    const rows=renderPreview(effects,run);
+    const immediate=rows || esc(choice.deferred?.length ? I18N.t('ui.preview.delayed') : dataText(choice,'hint') || I18N.t('ui.preview.uncertain'));
+    const delayed=(choice.deferred||[]).map(item=>`<span class="preview-line delayed-preview">⌛ ${esc(I18N.t('ui.preview.due',{days:item.days}))}: ${renderPreview(item.effects||{},run)||esc(I18N.t('ui.preview.uncertain'))}</span>`).join('');
+    return immediate+delayed;
   }
   function actionPreview(action, state) {
     const op=currentOperator(); const effects={station:{},operator:{},resources:{},signalKnowledge:0};

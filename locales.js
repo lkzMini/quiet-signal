@@ -47,6 +47,43 @@
   };
   const fillSpanishData = () => { const data=window.QS_DATA||{}; for(const collection of ['scenarios','operators','difficulties','mutators','objectives','events','endings','achievements','unlocks']) for(const item of data[collection]||[]) { for(const field of ['name','description','text','title','positive','negative']) if(item[`${field}Key`] && item[field]!=null) ui.es[item[`${field}Key`]]=item[field]; for(const [index,choice] of (item.choices||[]).entries()) for(const field of ['title','desc','hint']) if(choice[`${field}Key`] && choice[field]!=null) ui.es[choice[`${field}Key`]]=choice[field]; } };
   fillSpanishData();
+  // Narrative added in English remains the source; keep its Spanish/Korean UI copy intentional.
+  const newEventCopy = {
+    es: {
+      thermal_crack:['Una fisura bajo el aislante','El calor escapa por una junta que ayer parecía intacta.',[['Sellarla con espuma','Una pieza de reparación detiene la fuga.'],['Aislar el módulo','Protegé el núcleo a costa del espacio habitable.']],],
+      water_taste:['El agua sabe dulce','El análisis descarta contaminantes conocidos, pero no identifica el compuesto.',[['Reservar el agua','Esperá un segundo análisis.'],['Filtrar una muestra','Gastá una pieza para comparar resultados.']]],
+      sleeping_beacon:['La baliza despierta a las 03:12','La señal auxiliar pulsa cada vez que cambia el ciclo del generador.',[['Sincronizar los registros','Los pulsos forman una secuencia.'],['Desconectarla','El tono cesa, pero la vibración continúa.']]],
+      beacon_return:['La baliza responde desde adentro','El patrón sincronizado vuelve por el cableado interno, aunque el transmisor sigue desconectado.',[['Rastrear el retorno','La señal cruza un panel vacío.'],['Blindar el cable','Interrumpí el retorno a costa de energía.']]],
+      missing_crate:['Falta una caja en el inventario','El manifiesto registra una caja pesada recibida hace seis años. El depósito no muestra rastros de su llegada.',[['Revisar los manifiestos','Una firma coincide con la tuya.'],['Reponer según el conteo','Registrá la diferencia y seguí trabajando.']]],
+      crate_manifest:['La firma aparece en el margen','El manifiesto copiado ahora incluye una nota: «no abrir hasta que vuelva a desaparecer».', [['Abrir el compartimento','La cavidad detrás del estante parece recién cortada.'],['Sellar la pared','La caja puede esperar.']]],
+      outer_rattle:['Golpes en el casco exterior','Tres golpes recorren la estructura en contra del viento. El sensor no detecta ningún impacto.',[['Asegurar las placas','La inspección requiere salir al exterior.'],['Bajar la carga','Reducí el ruido eléctrico de la estructura.'],['Esperar otro ciclo','No expongas al operador todavía.']]],
+      heater_cycle:['El calefactor repite un ciclo','El registro muestra una pausa de cuarenta segundos cada hora, siempre antes de una ráfaga.',[['Cambiar el relé','El componente está desgastado.'],['Reprogramar el ciclo','Desplazá el consumo para reducir la pausa.'],['Seguir observando','La próxima pausa podría durar más.']]],
+      operator_note:['Una nota escrita con tu letra','La página tiene fecha de mañana. Recomienda seguir despierto durante el próximo cambio de turno.',[['Guardar la nota','No hay motivo para obedecer instrucciones anónimas.'],['Comparar la escritura','La inclinación coincide; la tinta, no.']]],
+      reserve_valve:['La válvula de reserva no cierra','El indicador oscila entre cero y una presión que el manual no describe.',[['Cerrarla a mano','La presión se estabiliza, pero baja el agua de la estación.'],['Desviar desde el panel','Usá energía para no abrir la tubería.'],['Etiquetar la válvula','No hay tiempo para intervenir este turno.']]],
+      repeater_window:['Aparece una ventana en el espectro','Durante nueve segundos, el ruido adopta la forma exacta de una puerta abierta.',[['Grabar sin transmitir','Guardá el patrón localmente.'],['Enviar un pulso corto','La respuesta llega antes que la transmisión.']]],
+      repeater_reply:['El patrón contiene una segunda ventana','Una grabación de hace veinte años muestra la misma abertura.',[['Alinear ambas señales','La coincidencia persiste sin energía.'],['Archivar el hallazgo','No arriesgues otra caída de potencia.']]],
+      snow_compass:['La brújula apunta bajo el piso','La aguja solo gira cuando cae la potencia de la estación.',[['Probar con el generador apagado','La aguja se detiene sobre el taller.'],['Guardar la lectura','No repitas el corte de energía.']]]
+    },
+    ko: {
+      thermal_crack:['단열재 아래의 균열','어제까지만 해도 멀쩡해 보였던 이음새로 열이 빠져나간다.',[['폼으로 메우기','수리 부품으로 누출을 막는다.'],['모듈 격리하기','생활 공간을 줄여 핵심부를 보호한다.']]],
+      water_taste:['단물처럼 느껴지는 물','간이 분석으로 알려진 오염물질은 배제했지만, 성분은 알 수 없다.',[['비축분 보류하기','추가 분석을 기다린다.'],['시료 여과하기','부품을 써서 결과를 비교한다.']]],
+      sleeping_beacon:['03:12에 깨어난 비콘','발전기 주기가 바뀔 때마다 보조 신호가 울린다.',[['기록 동기화하기','신호가 하나의 순서를 이룬다.'],['연결 끊기','소리는 멈추지만 진동은 남는다.']]],
+      beacon_return:['기지 안에서 응답하는 비콘','송신기는 끊겼지만 동기화된 패턴이 내부 배선을 타고 돌아온다.',[['회신 경로 추적하기','신호가 빈 패널을 통과한다.'],['케이블 차폐하기','전력을 써서 회신을 차단한다.']]],
+      missing_crate:['목록에서 사라진 상자','6년 전 무거운 상자가 도착했다고 기록되어 있지만 창고에는 흔적이 없다.',[['기록 대조하기','서명이 당신 것과 일치한다.'],['수량대로 보충하기','차이를 기록하고 일을 계속한다.']]],
+      crate_manifest:['여백에 나타난 서명','복사된 기록에 “다시 사라질 때까지 열지 말 것”이라는 메모가 생겼다.',[['수납칸 열기','선반 뒤의 공간은 최근에 잘린 듯하다.'],['벽 봉하기','상자는 나중에 열어도 된다.']]],
+      outer_rattle:['외벽을 두드리는 소리','바람과 반대 방향으로 세 번의 충격이 선체를 타고 온다. 센서는 아무것도 감지하지 못한다.',[['외벽 판 고정하기','점검하려면 밖으로 나가야 한다.'],['부하 낮추기','구조물의 전기 잡음을 줄인다.'],['한 주기 더 기다리기','아직 오퍼레이터를 위험에 노출하지 않는다.']]],
+      heater_cycle:['반복되는 난방 주기','기록에는 매시간 돌풍 직전에 40초간 멈추는 구간이 있다.',[['릴레이 교체하기','부품이 닳았다.'],['주기 재설정하기','소비 시점을 옮겨 정지를 줄인다.'],['계속 관찰하기','다음 정지는 더 길어질 수 있다.']]],
+      operator_note:['당신의 필체로 된 메모','메모 날짜는 내일이다. 다음 교대 때까지 깨어 있으라고 적혀 있다.',[['메모 보관하기','익명 지시를 따를 이유는 없다.'],['필체 비교하기','기울기는 같지만 잉크는 다르다.']]],
+      reserve_valve:['잠기지 않는 비상 밸브','계기판은 0과 설명서에 없는 압력 사이를 오간다.',[['직접 잠그기','압력은 안정되지만 기지의 물이 줄어든다.'],['패널에서 우회하기','배관을 열지 않는 대신 전력을 쓴다.'],['밸브에 표시하기','이번 근무에는 손댈 시간이 없다.']]],
+      repeater_window:['주파수 대역에 열린 창','9초 동안 잡음이 열린 문과 똑같은 모양을 만든다.',[['송신 없이 기록하기','패턴을 로컬에 저장한다.'],['짧은 펄스 보내기','송신보다 답신이 먼저 도착한다.']]],
+      repeater_reply:['패턴 속 두 번째 창','20년 전의 녹음에도 똑같은 틈이 나타난다.',[['두 신호 정렬하기','전력 없이도 일치가 유지된다.'],['발견 기록하기','또 다른 전력 저하를 감수하지 않는다.']]],
+      snow_compass:['바닥 아래를 가리키는 나침반','기지 전력이 떨어질 때만 바늘이 돈다.',[['발전기를 끄고 시험하기','바늘은 작업실 위에서 멈춘다.'],['측정 기록하기','전력을 다시 끊지는 않는다.']]]
+    }
+  };
+  for (const [lang, entries] of Object.entries(newEventCopy)) for (const [id, [title, text, choices]] of Object.entries(entries)) {
+    ui[lang][`event.${id}.title`] = title; ui[lang][`event.${id}.text`] = text;
+    choices.forEach(([choiceTitle, desc], index) => { ui[lang][`event.${id}.choice.${index}.title`] = choiceTitle; ui[lang][`event.${id}.choice.${index}.desc`] = desc; });
+  }
   fillDataLocale('en',0); fillDataLocale('ko',1);
   const weatherLabels = { 'NIEVE LEVE':['Light snow','약한 눈'], 'ALERTA ROJA':['Red alert','적색 경보'], 'SIN ENLACE':['No link','연결 없음'], 'REGISTRO INCOMPLETO':['Incomplete log','불완전한 기록'], 'NOCHE POLAR':['Polar night','극야'], 'AMANECER · VIENTO CALMO':['Dawn · Calm wind','새벽 · 잔잔한 바람'] };
   Object.entries(weatherLabels).forEach(([source, values]) => { ui.en[`weather.${source}`]=values[0]; ui.ko[`weather.${source}`]=values[1]; });
@@ -97,9 +134,9 @@
     ko:{repair:'부품 −1 · 가장 낮은 시스템 +10~16',eat:'식량 −1 · 허기 −28',drink:'물 −1 · 갈증 −32',sleep:'피로 −27 · 스트레스 −4',explore:'신체 위험 · 자원 획득 가능',logs:'신호 +2~4 · 피로 +3',antenna:'배터리 −1 · 통신 +8 · 신호 +3',maintenance:'부품 −1 · 시스템 +2~4',investigate:'전력 −4 · 신호 +5~8 · 스트레스 +3',craft:'배터리 −1 · 연료 −2 · 부품 +1',rest:'피로 −12 · 스트레스 −7',treat:'의약품 −1 · 체력 +20'}
   };
   Object.keys(actionHints).forEach(lang=>Object.entries(actionHints[lang]).forEach(([id,text])=>ui[lang][`action.${id}.hint`]=text));
-  Object.assign(ui.es,{'ui.state.normal':'Normal','ui.state.low':'Bajo','ui.state.critical':'Crítico','ui.event.relevantSystems':'SISTEMAS RELACIONADOS','ui.preview.uncertain':'Resultado incierto','ui.preview.good':'BENEFICIO','ui.preview.bad':'COSTE / RIESGO','ui.preview.outcomeUncertain':'Hallazgo variable · fatiga +9 · sed +5','ui.log.deferred':'Una consecuencia pendiente se manifestó.'});
-  Object.assign(ui.en,{'ui.state.normal':'Normal','ui.state.low':'Low','ui.state.critical':'Critical','ui.event.relevantSystems':'RELEVANT SYSTEMS','ui.preview.uncertain':'Uncertain outcome','ui.preview.good':'BENEFIT','ui.preview.bad':'COST / RISK','ui.preview.outcomeUncertain':'Variable find · fatigue +9 · thirst +5','ui.log.deferred':'A pending consequence has surfaced.'});
-  Object.assign(ui.ko,{'ui.state.normal':'정상','ui.state.low':'낮음','ui.state.critical':'위급','ui.event.relevantSystems':'관련 시스템','ui.preview.uncertain':'결과 불확실','ui.preview.good':'이점','ui.preview.bad':'비용 / 위험','ui.preview.outcomeUncertain':'획득물 변동 · 피로 +9 · 갈증 +5','ui.log.deferred':'미뤄둔 결과가 나타났습니다.'});
+  Object.assign(ui.es,{'ui.state.normal':'Normal','ui.state.low':'Bajo','ui.state.critical':'Crítico','ui.event.relevantSystems':'SISTEMAS RELACIONADOS','ui.preview.uncertain':'Resultado incierto','ui.preview.good':'BENEFICIO','ui.preview.bad':'COSTE / RIESGO','ui.preview.outcomeUncertain':'Hallazgo variable · fatiga +9 · sed +5','ui.preview.delayed':'Consecuencia diferida','ui.preview.due':'En {days} día(s)','ui.log.deferred':'Una consecuencia pendiente se manifestó.'});
+  Object.assign(ui.en,{'ui.state.normal':'Normal','ui.state.low':'Low','ui.state.critical':'Critical','ui.event.relevantSystems':'RELEVANT SYSTEMS','ui.preview.uncertain':'Uncertain outcome','ui.preview.good':'BENEFIT','ui.preview.bad':'COST / RISK','ui.preview.outcomeUncertain':'Variable find · fatigue +9 · thirst +5','ui.preview.delayed':'Delayed consequence','ui.preview.due':'In {days} day(s)','ui.log.deferred':'A pending consequence has surfaced.'});
+  Object.assign(ui.ko,{'ui.state.normal':'정상','ui.state.low':'낮음','ui.state.critical':'위급','ui.event.relevantSystems':'관련 시스템','ui.preview.uncertain':'결과 불확실','ui.preview.good':'이점','ui.preview.bad':'비용 / 위험','ui.preview.outcomeUncertain':'획득물 변동 · 피로 +9 · 갈증 +5','ui.preview.delayed':'지연된 결과','ui.preview.due':'{days}일 후','ui.log.deferred':'미뤄둔 결과가 나타났습니다.'});
   const eventCategories={mantenimiento:['Maintenance','정비'],supervivencia:['Survival','생존'],accidente:['Incident','사고'],oportunidad:['Opportunity','기회'],exploración:['Exploration','탐사'],comunicaciones:['Communications','통신'],psicológico:['Psychological','심리'],misterio:['Mystery','미스터리'],señal:['Signal','신호'],clima:['Weather','날씨'],evento:['Event','이벤트']};
   Object.entries(eventCategories).forEach(([id,labels])=>{ui.es[`event.category.${id}`]=id;ui.en[`event.category.${id}`]=labels[0];ui.ko[`event.category.${id}`]=labels[1];});
 
