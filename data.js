@@ -220,7 +220,7 @@
     ],{chain:{id:'kessler',stage:4},flagsBlocked:['kessler_closed'],minDay:8,weight:22}),
 
     e('echo_1','señal','Un eco adelantado','Tu llamada de prueba regresa dos segundos antes de haberla enviado.',[
-      c('Repetir la prueba','El desfase aumenta en cada ciclo.','Señal +5 · Potencia −4',{signalKnowledge:5,station:{power:-4}},{chain:{id:'echo',stage:1},flagsAdd:['echo_started'],counters:{transmissions:1}}),
+      c('Repetir la prueba','El desfase aumenta en cada ciclo.','Señal +5 · Potencia −4',{signalKnowledge:5,station:{power:-4}},{chain:{id:'echo',stage:1},flagsAdd:['echo_started'],thread:{id:'echo',stage:1},counters:{transmissions:1}}),
       c('Apagar transmisión','No registrás el segundo intento.','Estrés +2',{operator:{stress:2},flagsAdd:['echo_closed']})
     ],{chain:{id:'echo',stage:1},flagsBlocked:['echo_closed'],minDay:2}),
     e('echo_2','comunicaciones','La respuesta de mañana','El receptor imprime una reparación que todavía no realizaste.',[
@@ -232,9 +232,48 @@
       c('Buscar diferencias','Una decisión coincide con este mismo momento.','Fatiga +4 · Señal +6',{operator:{fatigue:4},signalKnowledge:6},{chain:{id:'echo',stage:3}})
     ],{chain:{id:'echo',stage:3},flagsBlocked:['echo_closed'],minDay:6,weight:18}),
     e('echo_4','señal','El mensaje que todavía no enviaste','La consola muestra una respuesta dirigida a algo bajo la montaña, firmada con tu nombre.',[
-      c('Autorizar transmisión','El mensaje sale sin usar energía medible.','Señal +14 · Estrés +10',{signalKnowledge:14,operator:{stress:10}},{chain:{id:'echo',stage:4},lore:'future_message',flagsAdd:['something_answered']}),
+      c('Autorizar transmisión','El mensaje sale sin usar energía medible.','Señal +14 · Estrés +10',{signalKnowledge:14,operator:{stress:10}},{chain:{id:'echo',stage:4},thread:{id:'echo',stage:4},lore:'future_message',flagsAdd:['something_answered']}),
       c('Borrar el mensaje','La copia vuelve a aparecer en el Archivo.','Señal +8',{signalKnowledge:8},{chain:{id:'echo',stage:4},lore:'future_message'})
-    ],{chain:{id:'echo',stage:4},flagsBlocked:['echo_closed'],minDay:9,weight:24})
+    ],{chain:{id:'echo',stage:4},flagsBlocked:['echo_closed'],minDay:9,weight:24}),
+    e('thermal_crack','accidente','A crack beneath the insulation','Heat is escaping through a seam that looked intact yesterday.',[
+      c('Seal it with foam','A repair part stops the leak.','Spare parts −1 · Heat +8',{resources:{spareParts:-1},station:{heat:8}},{requirements:{resources:{spareParts:1}},counters:{repairs:1}}),c('Isolate the module','Protect the core at the cost of living space.','Integrity −3 · Heat +4',{station:{integrity:-3,heat:4},flagsAdd:['module_isolated']})
+    ],{minDay:2}),
+    e('water_taste','supervivencia','The water tastes sweet','The quick analysis rules out known contaminants but cannot identify the compound.',[
+      c('Hold the reserves','Wait for a second analysis.','Water reserve −1 · Stress +2',{resources:{waterReserve:-1},operator:{stress:2}}),c('Filter a sample','Spend a part to compare results.','Spare parts −1 · Signal +2',{resources:{spareParts:-1},signalKnowledge:2},{requirements:{resources:{spareParts:1}},lore:'sweet_water'})
+    ]),
+    e('sleeping_beacon','comunicaciones','The beacon wakes at 03:12','The auxiliary signal pulses each time the generator changes cycle.',[
+      c('Synchronize the records','The pulses describe a sequence.','Batteries −1 · Signal +5',{resources:{batteries:-1},signalKnowledge:5},{requirements:{resources:{batteries:1}},chain:{id:'beacon',stage:1},flagsAdd:['beacon_started'],thread:{id:'beacon',stage:1}}),c('Disconnect it','The tone stops, but the vibration remains.','Comms −4 · Stress −2',{station:{comms:-4},operator:{stress:-2},flagsAdd:['beacon_cut']})
+    ],{chain:{id:'beacon',stage:1},minDay:2,oncePerRun:true}),
+    e('beacon_return','misterio','The beacon answers from inside','The synchronized pattern returns through internal wiring, though the transmitter remains disconnected.',[
+      c('Trace the return','The signal crosses an empty panel.','Fatigue +4 · Signal +7',{operator:{fatigue:4},signalKnowledge:7},{chain:{id:'beacon',stage:2},thread:{id:'beacon',stage:2},lore:'internal_beacon'}),c('Shield the cable','Interrupt the return at an energy cost.','Power −5 · Stress −3',{station:{power:-5},operator:{stress:-3},flagsAdd:['beacon_closed']})
+    ],{chain:{id:'beacon',stage:2},minDay:4,flagsRequired:['beacon_started'],flagsBlocked:['beacon_cut','beacon_closed'],oncePerRun:true}),
+    e('missing_crate','oportunidad','A crate is missing from the inventory','The manifest records a heavy crate received six years ago. The storage room shows no sign it arrived.',[
+      c('Review the manifests','A signature matches yours.','Signal +3 · Stress +3',{signalKnowledge:3,operator:{stress:3}},{chain:{id:'crate',stage:1},flagsAdd:['crate_thread_started'],thread:{id:'crate',stage:1},lore:'signed_manifest'}),c('Restock by count','Log the discrepancy and keep working.','Spare parts −1 · Integrity +3',{resources:{spareParts:-1},station:{integrity:3}},{requirements:{resources:{spareParts:1}},counters:{repairs:1}})
+    ],{scenario:['red'],chain:{id:'crate',stage:1},minDay:2,oncePerRun:true}),
+    e('crate_manifest','misterio','The signature appears in the margin','The copied manifest now includes a note: “do not open until it goes missing again.”',[
+      c('Open the compartment','A cavity behind the shelf looks freshly cut.','Batteries +2 · Signal +5',{resources:{batteries:2},signalKnowledge:5},{chain:{id:'crate',stage:2},thread:{id:'crate',stage:2},flagsAdd:['crate_opened']}),c('Seal the wall','The crate can wait.','Stress −3 · Power +2',{operator:{stress:-3},station:{power:2},flagsAdd:['crate_sealed']})
+    ],{scenario:['red'],chain:{id:'crate',stage:2},minDay:5,flagsRequired:['crate_thread_started'],flagsBlocked:['crate_sealed'],oncePerRun:true}),
+    e('outer_rattle','clima','Knocks on the outer wall','Three knocks travel along the hull against the wind. The impact sensor detects nothing.',[
+      c('Secure the plates','The inspection requires an outside trip.','Fatigue +7 · Integrity +6',{operator:{fatigue:7},station:{integrity:6}},{counters:{repairs:1,explore:1}}),c('Lower the load','Reduce electrical noise in the structure.','Power −3 · Comms +4',{station:{power:-3,comms:4}}),c('Wait another cycle','Do not expose the operator yet.','Delayed consequence',{operator:{stress:2}},{deferred:[{id:'outer_rattle_followup',days:2,effects:{station:{integrity:-5},operator:{stress:4}}}]})
+    ],{minDay:3,oncePerRun:true}),
+    e('heater_cycle','mantenimiento','The heater repeats a cycle','The log shows a forty-second pause every hour, always just before a gust.',[
+      c('Replace the relay','The component is worn.','Spare parts −1 · Heat +7',{resources:{spareParts:-1},station:{heat:7}},{requirements:{resources:{spareParts:1}},counters:{repairs:1}}),c('Reprogram the cycle','Shift consumption to reduce the pause.','Fuel −3 · Heat +5',{resources:{fuel:-3},station:{heat:5}},{requirements:{resources:{fuel:3}}}),c('Keep watching','The next pause may last longer.','Delayed consequence',{}, {deferred:[{id:'heater_cycle_followup',days:1,effects:{station:{heat:-8},resources:{fuel:-2}}}]})
+    ]),
+    e('operator_note','psicológico','A note in your handwriting','The page is dated tomorrow. It recommends staying awake through the next shift change.',[
+      c('Keep the note','There is no reason to follow anonymous instructions.','Stress −2',{operator:{stress:-2},flagsAdd:['future_note_saved']}),c('Compare the handwriting','The slant matches; the ink does not.','Fatigue +3 · Signal +4',{operator:{fatigue:3},signalKnowledge:4},{lore:'future_handwriting'})
+    ],{minDay:4,oncePerRun:true}),
+    e('reserve_valve','supervivencia','The reserve valve will not close','The gauge swings between zero and a pressure the manual does not describe.',[
+      c('Close it manually','Pressure stabilizes, but the station water falls.','Water −8 · Spare parts −1',{station:{water:-8},resources:{spareParts:-1}},{requirements:{resources:{spareParts:1}},counters:{repairs:1}}),c('Reroute at the panel','Use power to avoid opening the pipe.','Power −5 · Water +4',{station:{power:-5,water:4}}),c('Tag the valve','There is no time to handle it this shift.','Delayed consequence',{}, {deferred:[{id:'reserve_valve_followup',days:2,effects:{station:{water:-9},resources:{waterReserve:-1}}}]})
+    ],{minDay:2}),
+    e('repeater_window','comunicaciones','A window appears in the spectrum','For nine seconds, the noise takes the exact shape of an open door.',[
+      c('Record without transmitting','Save the pattern locally.','Signal +6 · Stress +2',{signalKnowledge:6,operator:{stress:2}},{chain:{id:'window',stage:1},flagsAdd:['window_started'],thread:{id:'window',stage:1},lore:'open_window'}),c('Send a short pulse','The reply arrives before the transmission.','Power −4 · Signal +8',{station:{power:-4},signalKnowledge:8},{requirements:{station:{power:5}},flagsAdd:['window_answered']})
+    ],{scenario:['orbit'],chain:{id:'window',stage:1},minDay:3,oncePerRun:true}),
+    e('repeater_reply','misterio','The pattern contains a second window','A matching opening appears in a recording from twenty years ago.',[
+      c('Align both signals','The match persists without power.','Batteries −1 · Signal +6',{resources:{batteries:-1},signalKnowledge:6},{requirements:{resources:{batteries:1}},chain:{id:'window',stage:2},thread:{id:'window',stage:2},lore:'two_windows'}),c('Archive the finding','Do not risk another power drop.','Stress −4',{operator:{stress:-4},flagsAdd:['window_closed']})
+    ],{scenario:['orbit'],chain:{id:'window',stage:2},minDay:5,flagsRequired:['window_started'],flagsBlocked:['window_closed'],oncePerRun:true}),
+    e('snow_compass','exploración','The compass points below the floor','The needle turns only when station power drops.',[
+      c('Test with the generator off','The needle stops above the workshop.','Power −6 · Signal +4',{station:{power:-6},signalKnowledge:4},{requirements:{station:{power:10}},lore:'compass_bearing'}),c('Save the reading','Do not repeat the power cut.','Stress −1 · Comms +2',{operator:{stress:-1},station:{comms:2}})
+    ],{minDay:6,flagsRequired:['ice_started'],oncePerRun:true})
   ];
 
   const endings = [

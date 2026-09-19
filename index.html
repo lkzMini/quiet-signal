@@ -68,6 +68,7 @@
           <h2 id="eventTitle" data-i18n="ui.game.initialTitle">Turno de guardia</h2>
           <p id="eventText"></p>
           <div id="contextLine" class="context-line"></div>
+          <section id="eventSystems" class="context-summary event-systems" aria-label="Relevant station systems"></section>
           <div id="choices" class="choices"></div>
           <button id="endDayBtn" class="primary end-day" hidden data-i18n="ui.game.endDay">Finalizar día</button>
         </section>
@@ -77,6 +78,7 @@
             <div><div class="section-title" data-i18n="ui.actions.title">ACCIONES DIARIAS</div><p data-i18n="ui.actions.description">La estación no se cuida sola. Elegí dónde gastar el turno.</p></div>
             <strong id="actionsCounter" data-i18n="ui.actions.remaining">3 restantes</strong>
           </div>
+          <section id="operatorQuickStatus" class="context-summary operator-quick-status" aria-label="Operator status"></section>
           <div id="dailyActions" class="daily-actions"></div>
         </section>
 
@@ -166,6 +168,7 @@
 
   <script src="data.js"></script>
   <script src="locales.js"></script>
+  <script src="systems.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

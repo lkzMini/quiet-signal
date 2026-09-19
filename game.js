@@ -8,10 +8,47 @@
   const LEGACY_RUN_KEY = 'quiet-signal-v02';
   const D = window.QS_DATA;
   const I18N = window.QS_I18N;
+  const { metrics:METRICS, state:metricState, isGood:metricIsGood, forecast:forecastMetric } = window.QS_SYSTEMS;
   const $ = id => document.getElementById(id);
   const STATION_STATS = [['power','stats.station.power'],['integrity','stats.station.structure'],['heat','stats.station.heat'],['comms','stats.station.comms'],['water','stats.station.water']];
   const OPERATOR_STATS = [['health','stats.operator.health',false],['hunger','stats.operator.hunger',true],['thirst','stats.operator.thirst',true],['fatigue','stats.operator.fatigue',true],['stress','stats.operator.stress',true]];
   const RESOURCE_META = [['food','stats.resource.food'],['waterReserve','stats.resource.water'],['fuel','stats.resource.fuel'],['spareParts','stats.resource.parts'],['medicalSupplies','stats.resource.medicine'],['batteries','stats.resource.batteries']];
+  function metricValue(runState, metric, key) { return metric.scope === 'signal' ? runState.signalKnowledge : runState[metric.scope][key]; }
+  function eventImpact(choice) {
+    const effects=JSON.parse(JSON.stringify(choice.effects||{})),op=currentOperator(),scenario=currentScenario();
+    if(effects.operator?.stress>0) effects.operator.stress *= (op.effects.stressGain||1)*(scenario.modifiers.stressGain||1)*(run.mutators.includes('paranoia')?1.3:1)*(currentEvent.category==='señal'?(op.effects.signalStress||1):1);
+    if(effects.signalKnowledge){effects.signalKnowledge *= (op.effects.signalGain||1)*(scenario.modifiers.signalGain||1);if(run.mutators.includes('interference'))effects.signalKnowledge*=.75;}
+    const rows=renderPreview(effects,run); return rows || esc(dataText(choice,'hint') || I18N.t('ui.preview.uncertain'));
+  }
+  function actionPreview(action, state) {
+    const op=currentOperator(); const effects={station:{},operator:{},resources:{},signalKnowledge:0};
+    const set=(scope,key,val)=>{if(scope==='signalKnowledge')effects.signalKnowledge=val;else effects[scope][key]=val;};
+    switch(action.id){
+      case 'repair': { const key=STATION_STATS.map(([id])=>id).sort((a,b)=>state.station[a]-state.station[b])[0]; let n=12*(op.effects.repair||1);if(key==='comms')n*=op.effects.commsRepair||1;set('station',key,n);set('resources','spareParts',-1);set('operator','fatigue',5);break; }
+      case 'eat':set('resources','food',-1);set('operator','hunger',-28);break;
+      case 'drink':set('resources','waterReserve',-1);set('operator','thirst',-32);break;
+      case 'sleep':set('operator','fatigue',-27);set('operator','stress',-4);break;
+      case 'explore':set('operator','fatigue',9*(op.effects.outsideFatigue||1));set('operator','thirst',5);break;
+      case 'logs':set('signalKnowledge','signalKnowledge',3*(op.effects.signalGain||1));set('operator','fatigue',3);break;
+      case 'antenna':set('resources','batteries',-1);set('station','comms',8*(op.effects.commsRepair||1));set('signalKnowledge','signalKnowledge',3*(op.effects.signalGain||1));break;
+      case 'maintenance':set('resources','spareParts',-1);for(const [key] of STATION_STATS)set('station',key,3*(op.effects.repair||1));set('operator','fatigue',6);break;
+      case 'investigate':set('station','power',-4);set('signalKnowledge','signalKnowledge',6*(op.effects.signalGain||1)*(state.mutators.includes('interference')?.75:1));set('operator','stress',3*(op.effects.stressGain||1));break;
+      case 'craft':set('resources','batteries',-1);set('resources','fuel',-2);set('resources','spareParts',1);set('operator','fatigue',5);break;
+      case 'rest':set('operator','fatigue',-12);set('operator','stress',-7);break;
+      case 'treat':set('resources','medicalSupplies',-1);set('operator','health',20);break;
+    }
+    return effects;
+  }
+  function renderPreview(effects,state) {
+    const lines=[];
+    for(const scope of ['station','operator','resources']) for(const [key,delta] of Object.entries(effects[scope]||{})){
+      const metric=METRICS[key];if(!metric)continue;const before=metricValue(state,metric,key), after=forecastMetric(before,delta,metric);if(after===before)continue;
+      const status=metricState(after,metric);const danger=status==='critical'||status==='low';const good=metricIsGood(delta,metric);
+      lines.push(`<span class="preview-line ${good?'delta-good':'delta-bad'} ${danger?'resource-alert '+status:''}">${metric.icon} ${esc(I18N.t(metric.label))}: ${Math.round(before)} → ${Math.round(after)} · ${esc(I18N.t(good?'ui.preview.good':'ui.preview.bad'))}${danger?` · ${esc(I18N.t(`ui.state.${status}`))}`:''}</span>`);
+    }
+    if(effects.signalKnowledge){const m=METRICS.signalKnowledge,b=state.signalKnowledge,a=clamp(b+effects.signalKnowledge);lines.push(`<span class="preview-line delta-good">∿ ${esc(I18N.t(m.label))}: ${Math.round(b)} → ${Math.round(a)} · ${esc(I18N.t('ui.preview.good'))}</span>`)}
+    return lines.join('');
+  }
 
   let profileStore = initializeProfiles();
   let activeProfile = profileStore.profiles.find(profile => profile.id === profileStore.selectedProfileId) || profileStore.profiles[0];
@@ -96,10 +133,10 @@
   function uniquePush(list, value) { if (!list.includes(value)) list.push(value); }
   function randomItem(list) { return list[Math.floor(Math.random() * list.length)]; }
   function esc(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function dataText(item, field) { const key = item && item[`${field}Key`]; if (key) return I18N.t(key); return I18N.getLocale()==='es' ? (item?.[field] ?? '') : ''; }
+  function dataText(item, field) { const key = item && item[`${field}Key`]; if (key) return I18N.t(key); return item?.[field] ?? ''; }
   function profileDisplayName(profile) { return profile?.defaultGenerated ? I18N.t('profile.defaultName') : profile?.name; }
   function weatherText(value) { return I18N.t(`weather.${value}`, {}) === `weather.${value}` ? value : I18N.t(`weather.${value}`); }
-  function categoryText(value) { const key=`event.${value}.category`; return I18N.has(key) ? I18N.t(key) : (I18N.getLocale()==='es' ? value : I18N.t('ui.common.eventCategory')); }
+  function categoryText(value) { const key=`event.category.${value}`; return I18N.has(key) ? I18N.t(key) : (I18N.getLocale()==='es' ? value : I18N.t('ui.common.eventCategory')); }
   function runtimeText(text) { return I18N.getLocale()==='es' ? text : (I18N.getLocale()==='ko' ? '행동이 기록되었습니다.' : 'Action recorded.'); }
 
   function scenarioUnlocked(scenario) { return !scenario.locked || meta.scenariosUnlocked.includes(scenario.id) || meta.unlocksPurchased.includes(scenario.unlockId); }
@@ -236,6 +273,8 @@
   }
 
   function normalizeRun() {
+    run.deferredConsequences = Array.isArray(run.deferredConsequences) ? run.deferredConsequences : [];
+    run.storyThreads = run.storyThreads && typeof run.storyThreads === 'object' ? run.storyThreads : {};
     for (const key of Object.keys(run.station)) run.station[key] = clamp(run.station[key]);
     for (const key of Object.keys(run.operator)) run.operator[key] = clamp(run.operator[key]);
     for (const key of Object.keys(run.resources)) run.resources[key] = Math.max(0, Math.round(run.resources[key]));
@@ -257,6 +296,8 @@
     if (!requirementMet(choice.requirements)) return;
     if (choice.ending || choice.endingResolver) { finishRun(choice.ending || choice.endingResolver()); return; }
     applyEffects(choice.effects, currentEvent.category);
+    for (const consequence of choice.deferred || []) run.deferredConsequences.push({ id:consequence.id, dueDay:run.day + Math.max(1,consequence.days||1), effects:consequence.effects||{}, flagsAdd:consequence.flagsAdd||[] });
+    if (choice.thread) run.storyThreads[choice.thread.id] = choice.thread.stage;
     for (const flag of choice.flagsAdd || []) run.flags[flag] = true;
     if (choice.chain) run.chainStages[choice.chain.id] = choice.chain.stage;
     for (const [key, value] of Object.entries(choice.counters || {})) run.counters[key] = (run.counters[key] || 0) + value;
@@ -272,16 +313,16 @@
 
   const ACTIONS = [
     { id:'repair', name:'Reparar sistema crítico', hint:'Repuestos −1 · sistema más bajo +10–16', available:r=>r.resources.spareParts>=1, perform:r=>{ const key=STATION_STATS.map(x=>x[0]).sort((a,b)=>r.station[a]-r.station[b])[0]; let amount=12*(currentOperator().effects.repair||1); if(key==='comms') amount*=currentOperator().effects.commsRepair||1; r.resources.spareParts--; r.station[key]+=amount; r.operator.fatigue+=5; r.counters.repairs=(r.counters.repairs||0)+1; return `Reparaste ${STATION_STATS.find(x=>x[0]===key)[1].toLowerCase()}.`; } },
-    { id:'eat', name:'Comer', hint:'Raciones −1 · hambre −28', available:r=>r.resources.food>=1, perform:r=>{r.resources.food--;r.operator.hunger-=28;return 'Comiste una ración caliente.';} },
-    { id:'drink', name:'Beber', hint:'Agua −1 · sed −32', available:r=>r.resources.waterReserve>=1, perform:r=>{r.resources.waterReserve--;r.operator.thirst-=32;return 'Usaste una reserva de agua.';} },
-    { id:'sleep', name:'Dormir', hint:'fatiga −27 · estrés −4', perform:r=>{r.operator.fatigue-=27;r.operator.stress-=4;r.counters.sleep=(r.counters.sleep||0)+1;return 'Dormiste durante parte del turno.';} },
+    { id:'eat', name:'Comer', hint:'Raciones −1 · hambre −28', available:r=>r.resources.food>=1&&r.operator.hunger>0, perform:r=>{r.resources.food--;r.operator.hunger-=28;return 'Comiste una ración caliente.';} },
+    { id:'drink', name:'Beber', hint:'Agua −1 · sed −32', available:r=>r.resources.waterReserve>=1&&r.operator.thirst>0, perform:r=>{r.resources.waterReserve--;r.operator.thirst-=32;return 'Usaste una reserva de agua.';} },
+    { id:'sleep', name:'Dormir', hint:'fatiga −27 · estrés −4', available:r=>r.operator.fatigue>0||r.operator.stress>0, perform:r=>{r.operator.fatigue-=27;r.operator.stress-=4;r.counters.sleep=(r.counters.sleep||0)+1;return 'Dormiste durante parte del turno.';} },
     { id:'explore', name:'Explorar exterior', hint:'riesgo físico · recursos posibles', available:r=>!r.flags.main_exit_closed, perform:r=>{const gain=randomItem([{food:2},{fuel:6},{spareParts:1},{batteries:2}]);applyDelta(r.resources,gain);r.operator.fatigue+=9*(currentOperator().effects.outsideFatigue||1);r.operator.thirst+=5;r.counters.explore=(r.counters.explore||0)+1;return `Exploraste el perímetro y recuperaste ${Object.values(gain)[0]} unidad(es).`;} },
     { id:'logs', name:'Revisar registros', hint:'señal +2–4 · fatiga +3', perform:r=>{r.signalKnowledge+=3*(currentOperator().effects.signalGain||1);r.operator.fatigue+=3;return 'Comparaste registros históricos.';} },
     { id:'antenna', name:'Ajustar antena', hint:'baterías −1 · comunicaciones +8 · señal +3', available:r=>r.resources.batteries>=1, perform:r=>{r.resources.batteries--;r.station.comms+=8*(currentOperator().effects.commsRepair||1);r.signalKnowledge+=3*(currentOperator().effects.signalGain||1);r.counters.transmissions=(r.counters.transmissions||0)+1;return 'Ajustaste la antena principal.';} },
     { id:'maintenance', name:'Mantenimiento general', hint:'repuestos −1 · todos los sistemas +2–4', available:r=>r.resources.spareParts>=1, perform:r=>{r.resources.spareParts--;for(const key of Object.keys(r.station))r.station[key]+=3*(currentOperator().effects.repair||1);r.operator.fatigue+=6;r.counters.repairs=(r.counters.repairs||0)+1;return 'Realizaste mantenimiento preventivo.';} },
     { id:'investigate', name:'Investigar señal', hint:'potencia −4 · señal +5–8 · estrés +3', available:r=>r.station.power>=5, perform:r=>{r.station.power-=4;r.signalKnowledge+=6*(currentOperator().effects.signalGain||1)*(r.mutators.includes('interference')?.75:1);r.operator.stress+=3*(currentOperator().effects.stressGain||1);r.counters.transmissions=(r.counters.transmissions||0)+1;return 'Aislaste otro patrón de 14.827.';} },
     { id:'craft', name:'Fabricar pieza', hint:'baterías −1 · combustible −2 · repuestos +1', available:r=>r.resources.batteries>=1&&r.resources.fuel>=2, perform:r=>{r.resources.batteries--;r.resources.fuel-=2;r.resources.spareParts++;r.operator.fatigue+=5;return 'Fabricaste un repuesto compatible.';} },
-    { id:'rest', name:'Descansar', hint:'fatiga −12 · estrés −7', perform:r=>{r.operator.fatigue-=12;r.operator.stress-=7;return 'Te apartaste de las consolas un momento.';} },
+    { id:'rest', name:'Descansar', hint:'fatiga −12 · estrés −7', available:r=>r.operator.fatigue>0||r.operator.stress>0, perform:r=>{r.operator.fatigue-=12;r.operator.stress-=7;return 'Te apartaste de las consolas un momento.';} },
     { id:'treat', name:'Tratar lesión', hint:'medicina −1 · salud +20', available:r=>r.resources.medicalSupplies>=1&&r.operator.health<95, perform:r=>{r.resources.medicalSupplies--;r.operator.health+=20;r.counters.meds=(r.counters.meds||0)+1;return 'Usaste el equipo médico de campaña.';} }
   ];
 
@@ -329,6 +370,9 @@
     const failure = checkFailure();
     if (failure) { finishRun(failure); return; }
     run.day++;
+    resolveDeferredConsequences();
+    const deferredFailure=checkFailure();
+    if(deferredFailure){finishRun(deferredFailure);return;}
     const difficulty = currentDifficulty();
     run.actionsRemaining = difficulty.id === 'extreme' && run.day % 3 === 0 ? difficulty.severeActions : difficulty.actions;
     run.time = run.day % 3 === 0 ? '21:30' : run.day % 2 === 0 ? '14:10' : '07:20';
@@ -383,18 +427,23 @@
     $('endingDialog').showModal();
   }
 
-  function statusText(value, inverted = false) {
-    const effective = inverted ? 100 - value : value;
-    return effective >= 70 ? I18N.t('ui.common.stable') : effective >= 45 ? I18N.t('ui.common.attention') : effective >= 25 ? I18N.t('ui.common.severe') : I18N.t('ui.common.criticalLower');
+  function statusText(value, metric) { return I18N.t(`ui.state.${metricState(value,metric)}`); }
+
+  function resolveDeferredConsequences() {
+    const pending=run.deferredConsequences||[];
+    const due=pending.filter(item=>item.dueDay<=run.day);
+    run.deferredConsequences=pending.filter(item=>item.dueDay>run.day);
+    for(const item of due){applyEffects(item.effects);for(const flag of item.flagsAdd||[])run.flags[flag]=true;run.history.push({key:'ui.log.deferred',vars:{day:run.day}});}
+    if(due.length) normalizeRun();
   }
 
   function meter(key, label, inverted, scope) {
     const value = clamp(run[scope][key]);
-    const effective = inverted ? 100 - value : value;
-    const severity = effective < 25 ? 'bad' : effective < 50 ? 'warn' : 'good';
+    const metric=METRICS[key], state=metricState(value,metric);
+    const severity = state==='critical'?'bad':state==='low'?'warn':'good';
     const row = document.createElement('div');
     row.className = 'meter-row';
-    row.innerHTML = `<div class="meter-head"><span class="meter-label">${I18N.t(label)}</span><strong>${Math.round(value)}</strong></div><div class="meter"><div class="meter-fill ${severity}" style="width:${value}%"></div></div><span class="meter-state ${severity}">${statusText(value,inverted)}</span>`;
+    row.innerHTML = `<div class="meter-head"><span class="meter-label">${I18N.t(label)}</span><strong>${Math.round(value)}</strong></div><div class="meter"><div class="meter-fill ${severity}" style="width:${value}%"></div></div><span class="meter-state ${severity}">${statusText(value,metric)}</span>`;
     return row;
   }
 
@@ -403,13 +452,15 @@
     $('operatorStats').replaceChildren(...OPERATOR_STATS.map(([key,label,inverted]) => meter(key,label,inverted,'operator')));
     const stationAverage = average(Object.values(run.station));
     const risk = average([100-run.operator.health,run.operator.hunger,run.operator.thirst,run.operator.fatigue,run.operator.stress]);
-    setStatus($('stationStatus'), stationAverage > 70 ? I18N.t('ui.common.stable') : stationAverage > 45 ? I18N.t('ui.common.degraded') : I18N.t('ui.common.critical'), stationAverage);
-    setStatus($('operatorStatus'), risk < 35 ? I18N.t('ui.common.functional') : risk < 60 ? I18N.t('ui.common.demanding') : I18N.t('ui.common.critical'), 100-risk);
+    const stationState=metricState(stationAverage,{higher:true,low:45,critical:25});
+    setStatus($('stationStatus'), stationState==='normal'?I18N.t('ui.common.stable'):stationState==='low'?I18N.t('ui.common.degraded'):I18N.t('ui.common.critical'), stationState);
+    const operatorState=metricState(risk,{higher:false,low:35,critical:60});
+    setStatus($('operatorStatus'), operatorState==='normal'?I18N.t('ui.common.functional'):operatorState==='low'?I18N.t('ui.common.demanding'):I18N.t('ui.common.critical'), operatorState);
   }
 
-  function setStatus(element, text, effective) {
+  function setStatus(element, text, state) {
     element.textContent = text;
-    element.className = `status-pill ${effective < 30 ? 'bad' : effective < 55 ? 'warn' : 'good'}`;
+    element.className = `status-pill ${state==='critical'?'bad':state==='low'?'warn':'good'}`;
   }
 
   function average(values) { return values.reduce((a,b)=>a+b,0)/values.length; }
@@ -417,8 +468,9 @@
   function renderResources() {
     $('resources').replaceChildren(...RESOURCE_META.map(([key,label]) => {
       const item = document.createElement('div');
-      item.className = `resource ${run.resources[key] <= 2 ? 'low' : ''}`;
-      item.innerHTML = `<span>${I18N.t(label)}</span><strong>${Math.max(0,Math.round(run.resources[key]))}</strong>`;
+      const metric=METRICS[key],state=metricState(run.resources[key],metric);
+      item.className = `resource ${state!=='normal'?'low':''} ${state}`;
+      item.innerHTML = `<span>${metric.icon} ${I18N.t(label)}${state!=='normal'?` · ${I18N.t(`ui.state.${state}`)}`:''}</span><strong>${Math.max(0,Math.round(run.resources[key]))}</strong>`;
       return item;
     }));
   }
@@ -436,11 +488,18 @@
 
   function renderActions() {
     $('actionsCounter').textContent = I18N.plural(run.actionsRemaining,{one:'ui.actions.remainingOne',other:'ui.actions.remaining'});
+    const quick=$('operatorQuickStatus');
+    quick.replaceChildren(...[['health',run.operator.health],['hunger',run.operator.hunger],['thirst',run.operator.thirst],['fatigue',run.operator.fatigue],['stress',run.operator.stress]].map(([key,value])=>{const metric=METRICS[key],state=metricState(value,metric),chip=document.createElement('span');chip.className=`context-chip ${state}`;chip.innerHTML=`${metric.icon} ${esc(I18N.t(metric.label))} <strong>${Math.round(value)}</strong> ${state!=='normal'?`<b>${esc(I18N.t(`ui.state.${state}`))}</b>`:''}`;return chip;}));
     $('dailyActions').replaceChildren(...ACTIONS.map(action => {
       const button = document.createElement('button');
       const available = run.actionsRemaining > 0 && (!action.available || action.available(run));
       button.className = 'daily-action'; button.disabled = !available;
-      button.innerHTML = `<strong>${esc(I18N.t(`action.${action.id}.name`))}</strong><span>${esc(I18N.t(`action.${action.id}.hint`))}</span>`;
+      const effects=actionPreview(action,run);
+      const relevant=(action.id==='eat'&&run.operator.hunger>=50)||(action.id==='drink'&&run.operator.thirst>=50)||(action.id==='sleep'&&run.operator.fatigue>=55)||(action.id==='treat'&&run.operator.health<65);
+      button.classList.toggle('relevant',relevant);
+      const actionIcons={repair:'🔧',eat:'🍖',drink:'💧',sleep:'😴',explore:'🥾',logs:'▤',antenna:'📡',maintenance:'🛠',investigate:'∿',craft:'⚙',rest:'☕',treat:'🩹'};
+      const uncertainty=action.id==='explore'?`<span class="preview-line delta-neutral">${esc(I18N.t('ui.preview.outcomeUncertain'))}</span>`:'';
+      button.innerHTML = `<strong><span aria-hidden="true">${actionIcons[action.id]}</span> ${esc(I18N.t(`action.${action.id}.name`))}</strong><span class="action-preview">${renderPreview(effects,run)}${uncertainty}</span>`;
       button.onclick = () => performAction(action);
       return button;
     }));
@@ -448,10 +507,10 @@
 
   function contextHint() {
     const warnings = [];
-    if(run.station.power<35)warnings.push(I18N.t('ui.warning.lowPower')); if(run.station.heat<35)warnings.push(I18N.t('ui.warning.unstableHeat'));
-    if(run.resources.fuel<7)warnings.push(I18N.t('ui.warning.lowFuel')); if(run.resources.waterReserve<4)warnings.push(I18N.t('ui.warning.lowWater'));
-    if(run.operator.thirst>65)warnings.push(I18N.t('ui.warning.dehydration')); if(run.operator.hunger>65)warnings.push(I18N.t('ui.warning.severeHunger'));
-    if(run.operator.fatigue>70)warnings.push(I18N.t('ui.warning.extremeFatigue')); if(run.operator.stress>70)warnings.push(I18N.t('ui.warning.extremeStress'));
+    if(metricState(run.station.power,METRICS.power)!=='normal')warnings.push(I18N.t('ui.warning.lowPower')); if(metricState(run.station.heat,METRICS.heat)!=='normal')warnings.push(I18N.t('ui.warning.unstableHeat'));
+    if(metricState(run.resources.fuel,METRICS.fuel)!=='normal')warnings.push(I18N.t('ui.warning.lowFuel')); if(metricState(run.resources.waterReserve,METRICS.waterReserve)!=='normal')warnings.push(I18N.t('ui.warning.lowWater'));
+    if(metricState(run.operator.thirst,METRICS.thirst)!=='normal')warnings.push(I18N.t('ui.warning.dehydration')); if(metricState(run.operator.hunger,METRICS.hunger)!=='normal')warnings.push(I18N.t('ui.warning.severeHunger'));
+    if(metricState(run.operator.fatigue,METRICS.fatigue)!=='normal')warnings.push(I18N.t('ui.warning.extremeFatigue')); if(metricState(run.operator.stress,METRICS.stress)!=='normal')warnings.push(I18N.t('ui.warning.extremeStress'));
     return warnings.length ? I18N.t('ui.context.warning',{items:warnings.join(' · ')}) : I18N.t('ui.context.clear');
   }
 
@@ -464,6 +523,8 @@
     $('eventTitle').textContent = dataText(currentEvent,'title');
     $('eventText').textContent = dataText(currentEvent,'text');
     $('contextLine').textContent = contextHint();
+    const relevant=[...new Set((currentEvent.choices||[]).flatMap(choice=>Object.keys(choice.effects?.station||{})))];
+    $('eventSystems').replaceChildren(...(relevant.length?[Object.assign(document.createElement('strong'),{className:'context-summary-title',textContent:I18N.t('ui.event.relevantSystems')}),...relevant.map(key=>{const metric=METRICS[key],value=run.station[key],state=metricState(value,metric),chip=document.createElement('span');chip.className=`context-chip ${state}`;chip.innerHTML=`${metric.icon} ${esc(I18N.t(metric.label))} <strong>${Math.round(value)}</strong> · ${esc(I18N.t(`ui.state.${state}`))}`;return chip;})]:[]));
     if (run.eventResolved) {
       $('choices').innerHTML = `<div class="resolved-event">${I18N.t('ui.game.resolved')}</div>`;
       $('endDayBtn').hidden = false;
@@ -472,7 +533,8 @@
         const enabled = requirementMet(choice.requirements);
         const button = document.createElement('button');
         button.className = 'choice'; button.disabled = !enabled;
-        button.innerHTML = `<div><strong>${esc(dataText(choice,'title'))}</strong><span>${esc(dataText(choice,'desc'))}</span></div><em>${esc(enabled ? dataText(choice,'hint') : I18N.t('ui.common.requirements'))}</em>`;
+        button.innerHTML = `<div><strong>${esc(dataText(choice,'title'))}</strong><span>${esc(dataText(choice,'desc'))}</span></div><em class="choice-impact">${esc(enabled ? '' : I18N.t('ui.common.requirements'))}</em>`;
+        if(enabled) button.querySelector('.choice-impact').innerHTML=eventImpact(choice);
         button.onclick = () => chooseEvent(choice);
         return button;
       }));

@@ -29,6 +29,7 @@
     const dict = ui[lang]; const data = window.QS_DATA || {};
     const fallback = (key, item, field, extra='') => {
       if (dict[key]) return;
+      if (typeof item?.[field] === 'string' && item[field].trim()) { dict[key] = item[field]; return; }
       const id = item?.id || 'entry'; const label = humanize(id);
       if (field === 'name' || field === 'title') dict[key] = lang === 'en' ? label : `${index ? '기록' : '이벤트'} · ${label}`;
       else if (field === 'description' || field === 'text' || field === 'desc') dict[key] = lang === 'en' ? `${label} report.` : `${label}에 대한 기록입니다.`;
@@ -39,7 +40,7 @@
     for (const collection of ['scenarios','operators','difficulties','mutators','objectives','events','endings','achievements','unlocks']) {
       for (const item of data[collection] || []) {
         for (const field of ['name','description','text','title','positive','negative']) { const key=item[`${field}Key`]; if(key) fallback(key,item,field); }
-        for (const [index, choice] of (item.choices || []).entries()) for (const field of ['title','desc','hint']) { const key=choice[`${field}Key`]; if(key) fallback(key,{id:`${item.id} choice ${index+1}`},field); }
+        for (const [index, choice] of (item.choices || []).entries()) for (const field of ['title','desc','hint']) { const key=choice[`${field}Key`]; if(key) fallback(key,choice,field); }
       }
     }
     for (const item of data.events || []) { const key=`event.${item.id}.category`; if(!dict[key]) dict[key]=(categoryLabels[item.category]||[humanize(item.category),humanize(item.category)])[index]; }
@@ -96,6 +97,11 @@
     ko:{repair:'부품 −1 · 가장 낮은 시스템 +10~16',eat:'식량 −1 · 허기 −28',drink:'물 −1 · 갈증 −32',sleep:'피로 −27 · 스트레스 −4',explore:'신체 위험 · 자원 획득 가능',logs:'신호 +2~4 · 피로 +3',antenna:'배터리 −1 · 통신 +8 · 신호 +3',maintenance:'부품 −1 · 시스템 +2~4',investigate:'전력 −4 · 신호 +5~8 · 스트레스 +3',craft:'배터리 −1 · 연료 −2 · 부품 +1',rest:'피로 −12 · 스트레스 −7',treat:'의약품 −1 · 체력 +20'}
   };
   Object.keys(actionHints).forEach(lang=>Object.entries(actionHints[lang]).forEach(([id,text])=>ui[lang][`action.${id}.hint`]=text));
+  Object.assign(ui.es,{'ui.state.normal':'Normal','ui.state.low':'Bajo','ui.state.critical':'Crítico','ui.event.relevantSystems':'SISTEMAS RELACIONADOS','ui.preview.uncertain':'Resultado incierto','ui.preview.good':'BENEFICIO','ui.preview.bad':'COSTE / RIESGO','ui.preview.outcomeUncertain':'Hallazgo variable · fatiga +9 · sed +5','ui.log.deferred':'Una consecuencia pendiente se manifestó.'});
+  Object.assign(ui.en,{'ui.state.normal':'Normal','ui.state.low':'Low','ui.state.critical':'Critical','ui.event.relevantSystems':'RELEVANT SYSTEMS','ui.preview.uncertain':'Uncertain outcome','ui.preview.good':'BENEFIT','ui.preview.bad':'COST / RISK','ui.preview.outcomeUncertain':'Variable find · fatigue +9 · thirst +5','ui.log.deferred':'A pending consequence has surfaced.'});
+  Object.assign(ui.ko,{'ui.state.normal':'정상','ui.state.low':'낮음','ui.state.critical':'위급','ui.event.relevantSystems':'관련 시스템','ui.preview.uncertain':'결과 불확실','ui.preview.good':'이점','ui.preview.bad':'비용 / 위험','ui.preview.outcomeUncertain':'획득물 변동 · 피로 +9 · 갈증 +5','ui.log.deferred':'미뤄둔 결과가 나타났습니다.'});
+  const eventCategories={mantenimiento:['Maintenance','정비'],supervivencia:['Survival','생존'],accidente:['Incident','사고'],oportunidad:['Opportunity','기회'],exploración:['Exploration','탐사'],comunicaciones:['Communications','통신'],psicológico:['Psychological','심리'],misterio:['Mystery','미스터리'],señal:['Signal','신호'],clima:['Weather','날씨'],evento:['Event','이벤트']};
+  Object.entries(eventCategories).forEach(([id,labels])=>{ui.es[`event.category.${id}`]=id;ui.en[`event.category.${id}`]=labels[0];ui.ko[`event.category.${id}`]=labels[1];});
 
   let pref = null; try { pref = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (_) {}
   let locale = supported.includes(pref.language) ? pref.language : ((navigator.language||'en').toLowerCase().startsWith('es')?'es':(navigator.language||'').toLowerCase().startsWith('ko')?'ko':'en');

@@ -1,7 +1,7 @@
 /* Translation coverage check. Run: node scripts/check-translations.js */
 const fs = require('fs');
 const source = fs.readFileSync('locales.js','utf8');
-const match = source.match(/const ui = ([\s\S]*?);\n  const metricLabels/);
+const match = source.match(/const ui = (\{[\s\S]*?\r?\n  \});\r?\n  const metricLabels/);
 if (!match) throw new Error('Could not locate translation dictionaries');
 const ui = Function(`return (${match[1]})`)();
 const flatten = (o,p='',r={}) => { for (const [k,v] of Object.entries(o||{})) { const key=p?`${p}.${k}`:k; if(v&&typeof v==='object'&&!Array.isArray(v)) flatten(v,key,r); else r[key]=v; } return r; };
