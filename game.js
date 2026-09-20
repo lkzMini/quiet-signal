@@ -8,6 +8,7 @@
   const LEGACY_RUN_KEY = 'quiet-signal-v02';
   const D = window.QS_DATA;
   const I18N = window.QS_I18N;
+  const ONBOARDING = window.QS_ONBOARDING;
   const { metrics:METRICS, state:metricState, isGood:metricIsGood, forecast:forecastMetric } = window.QS_SYSTEMS;
   const $ = id => document.getElementById(id);
   const STATION_STATS = [['power','stats.station.power'],['integrity','stats.station.structure'],['heat','stats.station.heat'],['comms','stats.station.comms'],['water','stats.station.water']];
@@ -59,7 +60,7 @@
   saveProfiles();
   let profileRunKey = profileKey('run');
   let profileMetaKey = profileKey('meta');
-  let meta = normalizeMeta(loadJson(profileMetaKey, createMeta()));
+  let meta = normalizeMeta(loadJson(profileMetaKey, null), Boolean(loadJson(profileRunKey, null)));
   let settings = loadJson(SETTINGS_KEY, { textScale: 100, reduceMotion: false });
   settings = { textScale: Number(settings?.textScale) || 100, reduceMotion: Boolean(settings?.reduceMotion), language: I18N.getLocale() };
   let run = loadJson(profileRunKey, null);
@@ -70,7 +71,8 @@
       data: 0, runsCompleted: 0, totalDaysSurvived: 0, bestRun: 0,
       endingsFound: [], eventsDiscovered: [], loreDiscovered: [], achievements: [],
       operatorsUnlocked: ['elena','marcus','noah'], scenariosUnlocked: ['winter','red','orbit'],
-      mutatorsUnlocked: [], perksUnlocked: [], unlocksPurchased: [], runHistory: []
+      mutatorsUnlocked: [], perksUnlocked: [], unlocksPurchased: [], runHistory: [],
+      onboarding: ONBOARDING.create()
     };
   }
 
@@ -101,7 +103,7 @@
   function loadProfileState() {
     profileRunKey = profileKey('run');
     profileMetaKey = profileKey('meta');
-    meta = normalizeMeta(loadJson(profileMetaKey, createMeta()));
+    meta = normalizeMeta(loadJson(profileMetaKey, null), Boolean(loadJson(profileRunKey, null)));
     run = loadJson(profileRunKey, null);
     currentEvent = null;
     if (run && !run.complete) currentEvent = run.currentEventId === 'final_shift' ? finalEvent() : byId(D.events, run.currentEventId) || pickEvent();
@@ -112,13 +114,18 @@
     saveProfiles();
   }
 
-  function normalizeMeta(value) {
+  function normalizeMeta(value, hasPriorRun = false) {
     const base = createMeta();
-    if (!value || typeof value !== 'object') return base;
+    if (!value || typeof value !== 'object') {
+      if (hasPriorRun) value = { ...base, onboarding: { briefingComplete:true, tutorialComplete:true, tutorialStep:0 } };
+      else return base;
+    }
+    if (value.onboarding == null) value.onboarding = ONBOARDING.normalize(null, {hasPriorRun, hasCompletedRun:Number(value.runsCompleted)>0});
     for (const key of Object.keys(base)) {
       if (Array.isArray(base[key]) && !Array.isArray(value[key])) value[key] = [...base[key]];
       else if (value[key] == null) value[key] = base[key];
     }
+    value.onboarding = ONBOARDING.normalize(value.onboarding, {hasPriorRun, hasCompletedRun:Number(value.runsCompleted)>0});
     return value;
   }
   meta = normalizeMeta(meta);
@@ -191,6 +198,8 @@
     closeDialog('newGameDialog');
     hideMenu();
     render();
+    if (ONBOARDING.shouldShowBriefing(meta.onboarding)) openBriefing(true);
+    else if (ONBOARDING.shouldResumeTutorial(meta.onboarding)) startTutorial();
     return true;
   }
 
@@ -479,6 +488,8 @@
   }
 
   function renderObjectives() {
+    const objectiveKey = currentScenario().id === 'red' ? 'onboarding.macro.red' : currentScenario().id === 'orbit' ? 'onboarding.macro.orbit' : 'onboarding.macro.default';
+    $('macroObjective').textContent = I18N.t(objectiveKey);
     $('objectives').replaceChildren(...run.objectives.map(id => {
       const objective = byId(D.objectives,id);
       const complete = objective.test(run);
@@ -496,7 +507,7 @@
     $('dailyActions').replaceChildren(...ACTIONS.map(action => {
       const button = document.createElement('button');
       const available = run.actionsRemaining > 0 && (!action.available || action.available(run));
-      button.className = 'daily-action'; button.disabled = !available;
+      button.className = 'daily-action'; button.disabled = !available; button.dataset.action = action.id;
       const effects=actionPreview(action,run);
       const relevant=(action.id==='eat'&&run.operator.hunger>=50)||(action.id==='drink'&&run.operator.thirst>=50)||(action.id==='sleep'&&run.operator.fatigue>=55)||(action.id==='treat'&&run.operator.health<65);
       button.classList.toggle('relevant',relevant);
@@ -575,6 +586,7 @@
     $('operatorKicker').textContent = `${I18N.t('ui.common.operator')} · ${operatorName.toUpperCase()}`;
     $('traitSummary').innerHTML = `<span>＋ ${esc(dataText(operator,'positive'))}</span><span>− ${esc(dataText(operator,'negative'))}</span>`;
     renderMeters(); renderResources(); renderObjectives(); renderActions(); renderEvent(); renderLog(); renderIntel();
+    renderTutorial();
     saveRun();
   }
 
@@ -589,7 +601,7 @@
     const text = {
       archiveBtn:'ui.menu.archive', settingsBtn:'ui.menu.settings', menuBtn:'ui.menu.menu',
       continueBtn:'ui.menu.continue', newGameBtn:'ui.menu.newGame', menuArchiveBtn:'ui.menu.archive', menuSettingsBtn:'ui.menu.settings',
-      changeProfileBtn:'ui.profile.change', createProfileBtn:'ui.profile.create'
+      menuHelpBtn:'onboarding.help', helpBtn:'onboarding.help', changeProfileBtn:'ui.profile.change', createProfileBtn:'ui.profile.create'
     };
     Object.entries(text).forEach(([id,key])=>{ const node=$(id); if(node) node.textContent=I18N.t(key); });
     const select=$('languageSelect'); if(select) select.value=I18N.getLocale();
@@ -599,6 +611,62 @@
     if (!run) { $('chapterLabel').textContent=I18N.t('ui.game.dayLabel',{day:1,time:'06:40'}); $('actionsCounter').textContent=I18N.plural(3,{one:'ui.actions.remainingOne',other:'ui.actions.remaining'}); }
     if (run && !run.complete) render(); else showMenu();
   }
+
+  const BRIEFING_STEPS = ['location','signal','loop','objective'];
+  const TOUR_STEPS = ['event','station','operator','resources','actions','investigate','closeDay'];
+  let briefingIndex = 0, briefingAutomatic = false, tutorialVisible = false, tutorialManual = false, manualTutorialStep = 0;
+  function openBriefing(automatic = false) {
+    briefingAutomatic = automatic; briefingIndex = 0;
+    renderBriefing();
+    if (!$('briefingDialog').open) $('briefingDialog').showModal();
+  }
+  function renderBriefing() {
+    const key = BRIEFING_STEPS[briefingIndex];
+    $('briefingTitle').textContent = I18N.t(`onboarding.briefing.${key}.title`);
+    $('briefingText').textContent = I18N.t(`onboarding.briefing.${key}.text`);
+    $('briefingProgress').textContent = I18N.t('onboarding.progress',{current:briefingIndex+1,total:BRIEFING_STEPS.length});
+    $('briefingBack').disabled = briefingIndex === 0;
+    $('briefingSkip').hidden = !briefingAutomatic;
+    $('briefingTour').hidden = briefingAutomatic || !run || run.complete;
+    $('briefingNext').textContent = I18N.t(briefingIndex === BRIEFING_STEPS.length - 1 ? 'onboarding.begin' : 'onboarding.next');
+  }
+  function finishBriefing(skipped = false) {
+    if (briefingAutomatic) { ONBOARDING.completeBriefing(meta.onboarding); saveMeta(); }
+    $('briefingDialog').close();
+    if (briefingAutomatic && run && !run.complete) startTutorial();
+  }
+  function startTutorial(manual = false) {
+    if (!run || run.complete) return;
+    tutorialVisible = true; tutorialManual = manual;
+    if (manual) manualTutorialStep = 0;
+    else { meta.onboarding.tutorialStep = Math.min(meta.onboarding.tutorialStep, TOUR_STEPS.length - 1); saveMeta(); }
+    renderTutorial();
+  }
+  function renderTutorial() {
+    const guide = $('tutorialGuide');
+    document.querySelectorAll('.tutorial-target').forEach(node => node.classList.remove('tutorial-target'));
+    if (!tutorialVisible || !run || run.complete || (!tutorialManual && meta.onboarding.tutorialComplete)) { guide.hidden = true; return; }
+    const step = Math.min(tutorialManual ? manualTutorialStep : meta.onboarding.tutorialStep, TOUR_STEPS.length - 1), id = TOUR_STEPS[step];
+    const selectors = {event:'#choices',station:'#stationStats',operator:'#operatorStats',resources:'#resources',actions:'#dailyActions',investigate:'[data-action="investigate"]',closeDay:'#endDayBtn'};
+    const target = document.querySelector(selectors[id]);
+    if (target) { target.classList.add('tutorial-target'); target.scrollIntoView({block:'center',behavior:settings.reduceMotion || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}); }
+    $('tutorialProgress').textContent = I18N.t('onboarding.tourProgress',{current:step+1,total:TOUR_STEPS.length});
+    $('tutorialTitle').textContent = I18N.t(`onboarding.tour.${id}.title`);
+    $('tutorialText').textContent = I18N.t(`onboarding.tour.${id}.text`);
+    $('tutorialNext').textContent = I18N.t(step === TOUR_STEPS.length - 1 ? 'onboarding.tourFinish' : 'onboarding.tourNext');
+    guide.hidden = false;
+  }
+  function advanceTutorial() {
+    const step = tutorialManual ? manualTutorialStep : meta.onboarding.tutorialStep;
+    if (step >= TOUR_STEPS.length - 1) {
+      if (!tutorialManual) { ONBOARDING.completeTutorial(meta.onboarding); saveMeta(); }
+      tutorialVisible = false; tutorialManual = false; renderTutorial(); return;
+    }
+    if (tutorialManual) manualTutorialStep++;
+    else { ONBOARDING.setStep(meta.onboarding,step+1,TOUR_STEPS.length); saveMeta(); }
+    renderTutorial();
+  }
+  function skipTutorial() { if(!tutorialManual){ONBOARDING.completeTutorial(meta.onboarding);saveMeta();} tutorialVisible = false; tutorialManual = false; renderTutorial(); }
 
   function openProfiles() {
     renderProfiles();
@@ -637,6 +705,7 @@
     profileStore.selectedProfileId = next.id;
     saveProfiles();
     loadProfileState();
+    tutorialVisible = false;
     closeDialog('profileDialog');
     showMenu();
   }
@@ -688,6 +757,7 @@
   }
 
   function showMenu() {
+    tutorialVisible = false; renderTutorial();
     $('mainMenu').classList.remove('hidden');
     const active = run && !run.complete;
     $('continueBtn').disabled = !active;
@@ -764,7 +834,7 @@
   function applySettings() { document.documentElement.style.setProperty('--text-scale',`${settings.textScale/100}`);document.body.classList.toggle('reduce-motion',settings.reduceMotion); }
   function closeDialog(id) { const dialog=$(id);if(dialog.open)dialog.close(); }
 
-  $('continueBtn').onclick = () => { if(run&&!run.complete){ currentEvent = run.currentEventId==='final_shift'?finalEvent():byId(D.events,run.currentEventId)||pickEvent();hideMenu();render(); } };
+  $('continueBtn').onclick = () => { if(run&&!run.complete){ currentEvent = run.currentEventId==='final_shift'?finalEvent():byId(D.events,run.currentEventId)||pickEvent();hideMenu();render(); if(ONBOARDING.shouldShowBriefing(meta.onboarding))openBriefing(true);else if(ONBOARDING.shouldResumeTutorial(meta.onboarding))startTutorial(); } };
   $('newGameBtn').onclick = renderNewGame;
   $('menuArchiveBtn').onclick = openArchive;
   $('menuSettingsBtn').onclick = openSettings;
@@ -772,8 +842,17 @@
   $('createProfileBtn').onclick = createLocalProfile;
   $('archiveBtn').onclick = openArchive;
   $('settingsBtn').onclick = openSettings;
+  $('helpBtn').onclick = () => openBriefing(false);
+  $('menuHelpBtn').onclick = () => openBriefing(false);
   $('menuBtn').onclick = showMenu;
   $('endDayBtn').onclick = endDay;
+  $('briefingClose').onclick = () => finishBriefing(false);
+  $('briefingBack').onclick = () => { if(briefingIndex>0){briefingIndex--;renderBriefing();} };
+  $('briefingNext').onclick = () => { if(briefingIndex<BRIEFING_STEPS.length-1){briefingIndex++;renderBriefing();}else finishBriefing(false); };
+  $('briefingSkip').onclick = () => finishBriefing(true);
+  $('briefingTour').onclick = () => { $('briefingDialog').close(); startTutorial(true); };
+  $('tutorialNext').onclick = advanceTutorial;
+  $('tutorialSkip').onclick = skipTutorial;
   $('restartBtn').onclick = () => { closeDialog('endingDialog');renderNewGame(); };
   $('endingArchiveBtn').onclick = () => { closeDialog('endingDialog');openArchive(); };
 

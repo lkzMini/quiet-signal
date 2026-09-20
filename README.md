@@ -17,6 +17,8 @@ Quiet Signal es una experiencia narrativa/survival local hecha con HTML, CSS y J
 
 Abrí [Quiet Signal](https://lkzMini.github.io/quiet-signal/) en Brave, elegí un perfil y comenzá una operación. Cada navegador/dispositivo tiene su propio almacenamiento local; los perfiles sólo separan jugadores dentro del mismo navegador.
 
+La primera operación de un perfil empieza con un briefing saltable y una guía contextual del primer día. El objetivo general queda visible junto a los objetivos secundarios; **Help / Ayuda** permite volver al briefing cuando quieras. El progreso del onboarding se guarda por perfil. Los perfiles con partidas anteriores no reciben una interrupción obligatoria.
+
 ## Desarrollo local
 
 Abrí `index.html` directamente. No requiere npm, dependencias, backend ni build step.

@@ -15,6 +15,7 @@
       <div class="top-actions">
         <button id="archiveBtn" class="ghost" data-i18n="ui.menu.archive">Archivo</button>
         <button id="settingsBtn" class="ghost" data-i18n="ui.menu.settings">Configuración</button>
+        <button id="helpBtn" class="ghost" data-i18n="onboarding.help">Ayuda</button>
         <button id="menuBtn" class="ghost" data-i18n="ui.menu.menu">Menú</button>
       </div>
     </header>
@@ -47,6 +48,7 @@
 
         <section class="panel objective-card">
           <div class="section-title" data-i18n="ui.section.objectives">OBJETIVOS DE RUN</div>
+          <div id="macroObjective" class="macro-objective"></div>
           <div id="objectives" class="objective-list"></div>
         </section>
       </aside>
@@ -102,6 +104,7 @@
         <button id="newGameBtn" class="menu-choice" data-i18n="ui.menu.newGame">Nueva partida</button>
         <button id="menuArchiveBtn" class="menu-choice" data-i18n="ui.menu.archive">Archivo</button>
         <button id="menuSettingsBtn" class="menu-choice" data-i18n="ui.menu.settings">Configuración</button>
+        <button id="menuHelpBtn" class="menu-choice" data-i18n="onboarding.help">Ayuda</button>
       </nav>
       <section class="profile-spotlight" aria-label="Perfil local activo" data-i18n-aria-label="ui.aria.activeProfile">
         <div><span class="panel-kicker" data-i18n="ui.profile.kicker">OPERADOR LOCAL</span><strong id="activeProfileName">Jugador 1</strong><small id="activeProfileMeta" data-i18n="ui.profile.meta">Progreso guardado en este navegador</small></div>
@@ -166,9 +169,19 @@
     </section>
   </dialog>
 
+  <dialog id="briefingDialog" class="briefing-dialog">
+    <section class="modal-card briefing-card" aria-labelledby="briefingTitle">
+      <div class="modal-head"><div><div class="kicker" data-i18n="onboarding.kicker">K-27 · BRIEFING DE OPERACIÓN</div><h2 id="briefingTitle"></h2></div><button type="button" class="close-btn" id="briefingClose" data-i18n-aria-label="onboarding.close">×</button></div>
+      <p id="briefingText" class="briefing-copy"></p><div id="briefingProgress" class="briefing-progress"></div>
+      <div class="modal-actions"><button id="briefingSkip" class="ghost" data-i18n="onboarding.skip">Omitir briefing</button><button id="briefingTour" class="ghost" data-i18n="onboarding.replayTour">Ver guía</button><span class="modal-spacer"></span><button id="briefingBack" class="ghost" data-i18n="onboarding.back">Atrás</button><button id="briefingNext" class="primary" data-i18n="onboarding.next">Siguiente</button></div>
+    </section>
+  </dialog>
+  <aside id="tutorialGuide" class="tutorial-guide" hidden aria-live="polite"><div class="kicker" id="tutorialProgress"></div><h3 id="tutorialTitle"></h3><p id="tutorialText"></p><div class="tutorial-actions"><button id="tutorialSkip" class="ghost" data-i18n="onboarding.skipTour">Saltar guía</button><button id="tutorialNext" class="primary" data-i18n="onboarding.tourNext">Siguiente</button></div></aside>
+
   <script src="data.js"></script>
   <script src="locales.js"></script>
   <script src="systems.js"></script>
+  <script src="onboarding-state.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

@@ -7,7 +7,9 @@ Una experiencia narrativa/survival local de runs cortas. Gestionás la estación
 K-27 y a su operador durante 10–15 días mientras investigás la señal 14.827.
 
 Funciona sólo con HTML, CSS y JavaScript vanilla. No usa npm, frameworks, backend,
-CDN ni build step: abrí index.html directamente en Brave.
+CDN ni build step: abrí index.html directamente en Brave. La primera operación
+incluye un briefing breve y una guía contextual; ambos pueden saltarse y la Ayuda
+permite volver al briefing. La guía se guarda por perfil.
 
 BUCLE DE JUEGO
 --------------
@@ -16,6 +18,12 @@ Cada día ofrece:
 - una cantidad limitada de acciones
 - consumo de recursos y desgaste de estación
 - aumento de hambre, sed, fatiga y estrés
+
+Una operación nueva muestra primero el briefing de K-27 y, al entrar al primer
+día, una guía contextual saltable. El objetivo macro queda visible junto a los
+objetivos secundarios. La Ayuda abre el briefing en cualquier momento. Perfiles
+con saves anteriores se reconocen como veteranos y no reciben una interrupción
+forzada; su run y su progreso no se modifican.
 
 Las acciones personales compiten con mantenimiento e investigación. Después de
 resolver el evento podés gastar acciones restantes o finalizar el día.
@@ -26,8 +34,8 @@ CONTENIDO DE 0.3
 - 4 operadores definidos; 3 disponibles inicialmente
 - 3 dificultades
 - 5 mutadores desbloqueables
-- 40 eventos condicionales y ponderados
-- 4 cadenas narrativas de cuatro etapas
+- 53 eventos condicionales y ponderados
+- 7 cadenas narrativas (cuatro de cuatro etapas y tres de dos)
 - 12 objetivos de run
 - 10 finales
 - 15 logros
